@@ -1,0 +1,3 @@
+[submodule "live/CrystalDiskInfo"]
+	path = live/CrystalDiskInfo
+	url = https://github.com/hiyohiyo/CrystalDiskInfo.git
