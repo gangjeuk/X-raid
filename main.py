@@ -1,4 +1,8 @@
-
+import os, sys
+import argparse
 
 if __name__ == "__main__":
-    pass
+    parser = argparse.ArgumentParser(
+        description='AIRR(AMD & Intel RAID Reconstructor)'
+    )
+    
