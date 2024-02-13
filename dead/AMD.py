@@ -53,7 +53,7 @@ DISK = namedtuple(
         "sector_count",
     ],
 )
-
+'''
 VDISK = namedtuple(
     "VDISK",
     [
@@ -79,7 +79,32 @@ VDISK = namedtuple(
         "config",
     ],
 )
-
+'''
+VDISK = namedtuple(
+    "VDISK",
+    [
+        "signature",
+        "status",
+        "padding1",
+        "raid_signature",
+        "padding2",
+        "id",
+        "padding3",
+        "sector_count",
+        "padding4",
+        "total_count",
+        "first_count",
+        "second_count",
+        "dummy_count",
+        "padding5",
+        "hidden",
+        "padding6",
+        "name",
+        "padding7",
+        "cts",
+        "config",
+    ],
+)
 CONFIG = namedtuple(
     "CONFIG",
     [
@@ -91,6 +116,7 @@ CONFIG = namedtuple(
         "end",
     ],
 )
+
 
 # TODO: use ENUM for return value
 def get_raid_level(vdisk: VDISK):
@@ -113,11 +139,11 @@ def get_raid_level(vdisk: VDISK):
 
 
 def get_stripe_size(vdisk: VDISK):
-    if vdisk.cts == 0:
+    if vdisk.cts == 1:
         return "64KB"
-    elif vdisk.cts == 1:
-        return "128KB"
     elif vdisk.cts == 2:
+        return "128KB"
+    elif vdisk.cts == 3:
         return "256KB"
 
 
@@ -143,6 +169,13 @@ def check_is_amd_raid(file_name) -> bool:
             return False
 
 
+def dump_anchor(anchor: ANCHOR, verbose=False):
+    print("======== ANCHOR ==========")
+    print("Number of DDF Header: {}".format(anchor.ddf_count))
+    print("Offset of latest version: {}".format(hex(anchor.offset_sec * SECTOR_SIZE)))
+    print("Disk ID: {}".format(anchor.disk_id))
+
+
 def dump_disk(disk: DISK, verbose=False):
     print("======== DISK Info ==========")
     print("ID: {}".format(hex(disk.id)))
@@ -162,18 +195,19 @@ def dump_vdisk(vdisk: VDISK, verbose=False):
         print("[Order] Disk ID: Start Offset / End Offset")
         for config in vdisk.config:
             print(
-                "[{}] {}: {} - {}".format(
+                "[{}] {}: {}({}) - {}({})".format(
                     config.hd,
                     hex(config.id),
+                    hex(config.begin * SECTOR_SIZE),
                     get_rounded_size(config.begin * SECTOR_SIZE, "GB"),
+                    hex((config.begin + config.end) * SECTOR_SIZE),
                     get_rounded_size((config.begin + config.end) * SECTOR_SIZE, "GB"),
                 )
             )
             print()
         print("----------------------------------------------------")
 
-
-def parse_metadata(file_name) -> Tuple[ANCHOR, HEADER, list[DISK], list[VDISK]] | None:
+def parse_metadata(file_name) -> Tuple[ANCHOR, HEADER, list[DISK], list[VDISK]]:
     FORMAT = ""
     FORMAT_SIZE = 0
     f = open(file_name, "rb")
@@ -193,8 +227,7 @@ def parse_metadata(file_name) -> Tuple[ANCHOR, HEADER, list[DISK], list[VDISK]] 
     FORMAT = "<Q8sQ496pH38pH"
     FORMAT_SIZE = calcsize(FORMAT)
     anchor = ANCHOR._make(unpack(FORMAT, data[:FORMAT_SIZE]))
-    print("Number of DDF Header: {}".format(anchor.ddf_count))
-    print("Offset of latest version: {}", hex(anchor.offset_sec * SECTOR_SIZE))
+
     # Read latest version
     f.seek(anchor.offset_sec * SECTOR_SIZE, os.SEEK_SET)
     data = f.read(SECTOR_SIZE)
@@ -215,6 +248,7 @@ def parse_metadata(file_name) -> Tuple[ANCHOR, HEADER, list[DISK], list[VDISK]] 
     data = f.read(header.vdisk_size)
     while vdisk_offset != header.vdisk_size:
         FORMAT = "<LLLL28pQ28pQ16pLLLL12pL32pH6p24sc"
+        FORMAT = "<LLLL28pQ28pQ16pLLLL48pH6p24s72pHc"
         FORMAT_SIZE = calcsize(FORMAT)
         vdisk_lst.append(
             VDISK._make(unpack(FORMAT, data[vdisk_offset : vdisk_offset + FORMAT_SIZE]))
@@ -238,11 +272,14 @@ def parse_metadata(file_name) -> Tuple[ANCHOR, HEADER, list[DISK], list[VDISK]] 
     return anchor, header, disk_lst, vdisk_lst
 
 
-
-
-def recover(file_names: list[str], output_path):
+def reconstruct(file_names: list[str], output_path: str):
+    if output_path is None:
+        print("No output path")
+        return
+    
     file_disk_map = {}
 
+    # Check every disk image and match DiskID with file
     for file_name in file_names:
         anchor, header, disk_lst, vdisk_lst = parse_metadata(file_name)
         file_disk_map[anchor.disk_id] = file_name
@@ -250,47 +287,40 @@ def recover(file_names: list[str], output_path):
     # TODO: Metadata validation for each disk
     # Use metadata in the first file in list for now
 
-
     # TODO
     # RAID0 tested
     # RAID1 tested
     # RAID10 not tested
     # JBOD not tested
-    
-    anchor, header, disk_lst, vdisk_lst = parse_metadata(file_name)
+
+    anchor, header, disk_lst, vdisk_lst = parse_metadata(file_names[0])
     for vdisk in vdisk_lst:
         output_name = ""
-        stripe_size = 1 << (16 + vdisk.cts)
+        stripe_size = 1 << (15 + vdisk.cts)
         raid_level = get_raid_level(vdisk)
         size = get_rounded_size(vdisk.sector_count * SECTOR_SIZE, "GB")
-        start_offset_disk_map = {}
         fd_disk_map = {}
         for config in vdisk.config:
-            start_offset_disk_map[config.id] = {
-                "begin": config.begin,
-                "end": config.end,
-            }
             fd_disk_map[config.id] = open(file_disk_map[config.id], "rb")
 
-        output_name = str(vdisk.id) + "_" + str(raid_level) + "_" + size + ".img"
-        print("Reconstructing VDISK ID at: {}".format(output_name))
-        
-        with open(os.path.join(output_path, output_name), 'wb') as fw:
+        output_name = str(vdisk.id) + "_RAID-" + str(raid_level) + "_" + size + ".img"
+        print("Reconstructing VDISK ID: {}".format(output_name))
+        dump_vdisk(vdisk, True)
+        with open(os.path.join(output_path, output_name), "wb") as fw:
             # set each disk SEEK position
             for config in vdisk.config:
-                fd_disk_map[config.id].seek(config.begin, os.SEEK_SET)
-
+                fd_disk_map[config.id].seek(config.begin * SECTOR_SIZE, os.SEEK_SET)
 
             if raid_level == 0:
                 # calc how many times to loop
                 for i in range((vdisk.config[0].end * SECTOR_SIZE) // stripe_size):
-                    # reconstruct by disk order 
+                    # reconstruct by disk order
                     # AMD RAID follow the order in vdisk.config
-                    data = b''
+                    data = b""
                     for config in vdisk.config:
                         data += fd_disk_map[config.id].read(stripe_size)
                     fw.write(data)
-                    
+
             elif raid_level == 1:
                 # calc how many times to loop
                 for i in range((vdisk.config[0].end * SECTOR_SIZE) // stripe_size):
@@ -300,12 +330,32 @@ def recover(file_names: list[str], output_path):
             # TODO: RAID10 and JBOD
             # elif
 
-        
         map(lambda x: x.close(), fd_disk_map.keys())
 
-        return 1
+    return 1
 
 
+def print_info(file_name, verbose):
+    anchor, _, disk_list, vdisk_list = parse_metadata(file_name)
+
+    dump_anchor(anchor)
+    
+    for i, disk in enumerate(disk_list):
+        if i == 0:
+            continue
+        dump_disk(disk, verbose)
+
+    for vdisk in vdisk_list:
+        dump_vdisk(vdisk, verbose)
+
+
+def print_help():
+    print("Print information")
+    print("python main.py --system AMD -i [-v] --files [disk_image.img]")
+    print("\n")
+    print("Reconstruction")
+    print("python main.py --system AMD -r --files [disk_image1.img] --files [disk_image2.img] --output_path ./output")
+    
 
 if __name__ == "__main__":
     file_name = "data/AMD/hex"
