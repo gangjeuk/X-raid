@@ -47,7 +47,7 @@ def check_is_raid():
 
                 # get disk size
                 pd = win32file.CreateFile(pd_name, win32file.GENERIC_READ, 0, None, win32file.OPEN_EXISTING, win32file.FILE_ATTRIBUTE_NORMAL, 0)
-                size = win32file.DeviceIoControl(f, winioctlcon.IOCTL_DISK_GET_LENGTH_INFO, None, 512, None)  #returns bytes
+                size = win32file.DeviceIoControl(pd, winioctlcon.IOCTL_DISK_GET_LENGTH_INFO, None, 512, None)  #returns bytes
                 size = struct.unpack('q', size)[0]  #convert 64 bit int from bytes to int -> first element of returned tuple
                 print(size)
                 fr.seek(size - 0x200)
@@ -60,7 +60,7 @@ def check_is_raid():
         return True
     elif when_bios_setup_disabled():
         return True
-
+    print("RAID not found")
     return False
     
     
@@ -101,3 +101,5 @@ def parse_diskinfo_log():
     
 
     
+if __name__ == '__main__':
+    check_is_raid()
