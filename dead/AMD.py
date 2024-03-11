@@ -3,6 +3,7 @@ import os
 import time
 from collections import namedtuple
 from typing import *
+from functools import reduce
 
 
 MAGIC = "RAIDCore"
@@ -31,14 +32,15 @@ HEADER = namedtuple(
         "checksum_parameter",
         "signature",
         "padding1",
+        "metadata_size",
+        "padding2",
         "disk_offset",
         "disk_size",  # number of disk = disk_size / (size_of_disk_metadata = 0x80)
         "vdisk_offset",
         "vdisk_size",  # number of vdisk = vdisk_size / (size_of_vdisk_metadata = 0x290)
-        "padding2",
+        "padding3",
         "controller_offset",
-        "controller_size"  # number of controller = controller_data_size / (size_of_controller_data_metadata = 0x88)
-        "metadata_size",
+        "controller_size",  # number of controller = controller_data_size / (size_of_controller_data_metadata = 0x88)
     ],
 )
 
@@ -207,7 +209,7 @@ def dump_vdisk(vdisk: VDISK, verbose=False):
             print()
         print("----------------------------------------------------")
 
-def parse_metadata(file_name) -> Tuple[ANCHOR, HEADER, list[DISK], list[VDISK]]:
+def parse_metadata(file_name, index = -1) -> Tuple[ANCHOR, HEADER, list[DISK], list[VDISK]]:
     FORMAT = ""
     FORMAT_SIZE = 0
     f = open(file_name, "rb")
@@ -221,6 +223,7 @@ def parse_metadata(file_name) -> Tuple[ANCHOR, HEADER, list[DISK], list[VDISK]]:
         print("No AMD RAID Signature found")
         return None
 
+    # Read anchor
     f.seek(ANCHOR_OFFSET, os.SEEK_SET)
     data = f.read(SECTOR_SIZE * 2)
 
@@ -228,12 +231,26 @@ def parse_metadata(file_name) -> Tuple[ANCHOR, HEADER, list[DISK], list[VDISK]]:
     FORMAT_SIZE = calcsize(FORMAT)
     anchor = ANCHOR._make(unpack(FORMAT, data[:FORMAT_SIZE]))
 
-    # Read latest version
-    f.seek(anchor.offset_sec * SECTOR_SIZE, os.SEEK_SET)
-    data = f.read(SECTOR_SIZE)
 
-    FORMAT = "<QLL20pLLLL8pLL"
+    # Read Header
+    FORMAT = "<QLL8pL8pLLLL8pLL"
     FORMAT_SIZE = calcsize(FORMAT)
+    if index == -1:
+        # Read latest version
+        f.seek(anchor.offset_sec * SECTOR_SIZE, os.SEEK_SET)
+    else:
+        if index > anchor.ddf_count:
+            print("Index Error")
+            return None
+        # search nth version
+        f.seek(0xb00000, os.SEEK_SET)
+        for i in range(index):
+            data = f.read(SECTOR_SIZE)
+            header = HEADER._make(unpack(FORMAT, data[:FORMAT_SIZE]))
+            # need to go back
+            f.seek(header.metadata_size - SECTOR_SIZE, os.SEEK_CUR)
+            
+    data = f.read(SECTOR_SIZE)
     header = HEADER._make(unpack(FORMAT, data[:FORMAT_SIZE]))
 
     data = f.read(header.disk_size)
@@ -335,6 +352,43 @@ def reconstruct(file_names: list[str], output_path: str):
     return 1
 
 
+def print_history(file_name, verbose = False):
+    anchor, _, _, _ = parse_metadata(file_name)
+    
+    print("========= AMD RAID History ==========")
+    for i in range(anchor.ddf_count - 1):
+        _, _, bf_disk_list, bf_vdisk_list = parse_metadata(file_name, i)
+        _, _, af_disk_list, af_vdisk_list = parse_metadata(file_name, i + 1)
+        
+        added_disk = set(af_disk_list) - set(bf_disk_list)
+        deleted_disk = set(bf_disk_list) - set(af_disk_list)
+        
+        if added_disk:
+            print("======= Disk added =======")
+            list(map(dump_disk, list(added_disk)))
+            print()
+        if deleted_disk:
+            print("======= Disk deleted =======")
+            list(map(dump_disk, list(deleted_disk)))
+            print()
+            
+        for i in range(len(bf_vdisk_list)):
+            bf_vdisk_list[i] = bf_vdisk_list[i]._replace(config = 0)
+        for i in range(len(af_vdisk_list)):
+            af_vdisk_list[i] = af_vdisk_list[i]._replace(config = 0)
+            
+        added_vdisk = set(af_vdisk_list) - set(bf_vdisk_list)
+        deleted_vdisk = set(bf_vdisk_list) - set(af_vdisk_list)     
+           
+        if added_vdisk:
+            print("======= VDisk created =======")
+            list(map(dump_vdisk, list(added_vdisk)))
+            print()
+        if deleted_vdisk:
+            print("======= VDisk deleted =======")
+            list(map(dump_vdisk, list(deleted_vdisk)))
+            print()
+            
 def print_info(file_name, verbose):
     anchor, _, disk_list, vdisk_list = parse_metadata(file_name)
 
@@ -359,8 +413,4 @@ def print_help():
 
 if __name__ == "__main__":
     file_name = "data/AMD/hex"
-    _, header, disk_lst, vdisk_lst = parse_metadata(file_name)
-
-    dump_disk(disk_lst[1])
-    for vdisk in vdisk_lst:
-        dump_vdisk(vdisk, verbose=True)
+    print_history(file_name)

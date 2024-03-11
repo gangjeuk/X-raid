@@ -2,6 +2,8 @@ from struct import unpack, calcsize
 import os
 import time
 from collections import namedtuple
+from typing import *
+import re
 
 # https://stackoverflow.com/questions/4193514/how-to-get-hard-disk-serial-number-using-python
 
@@ -112,6 +114,17 @@ IMSM_SUPER = namedtuple(
 MAGIC = "Intel Raid ISM Cfg Sig. "
 
 
+def get_rounded_size(size: Optional[int], unit: Literal["KB", "MB", "GB"]) -> str:
+    if size is None:
+        return None
+
+    if unit == "KB":
+        return str(size // 1000) + unit
+    elif unit == "MB":
+        return str(size // 1000000) + unit
+    elif unit == "GB":
+        return str(size // 1000000000) + unit
+
 def print_imsm_super(imsm_super: IMSM_SUPER, verbose: bool = False):
     print("-----------Header------------")
     print("Magic : {}".format(imsm_super.sig[: len(MAGIC)]))
@@ -128,7 +141,7 @@ def print_imsm_super(imsm_super: IMSM_SUPER, verbose: bool = False):
 def print_imsm_disk(imsm_disk: IMSM_DISK, verbose: bool = False):
     print("------------DISK------------")
     print("Serial: {}".format(imsm_disk.serial))
-    print("Size: {}".format(get_total_blocks(imsm_disk) * SECTOR_SIZE))
+    print("Size: {}".format(get_rounded_size(get_total_blocks(imsm_disk) * SECTOR_SIZE, 'GB')))
     print("SCSI ID: {}".format(imsm_disk.scsi_id))
     print("------------------------------")
 
@@ -137,7 +150,7 @@ def print_imsm_dev(imsm_dev: IMSM_DEV, verbose: bool = False):
     imsm_map = imsm_dev.imsm_vol.imsm_map
     print("------------VDISK------------")
     print("Name: {}".format(imsm_dev.volume))
-    print("Size: {}".format(get_dev_size(imsm_dev) * SECTOR_SIZE))
+    print("Size: {}".format(get_rounded_size(get_dev_size(imsm_dev) * SECTOR_SIZE, 'GB')))
     print("TID: {}".format(imsm_dev.tid))
     print("Start Offset: {}".format(get_pba_of_lba0(imsm_map) * SECTOR_SIZE))
     print("Stipe Size: {}".format(imsm_map.blocks_per_strip * SECTOR_SIZE))
@@ -216,23 +229,62 @@ def check_is_intel_raid(file_name) -> int:
     for candi in sector_size_candi:
         SECTOR_SIZE = candi
         metadata = read_first_meta_sec(file_name)
-        if metadata[-1 * len(MAGIC) :].decode() == MAGIC:
+        if metadata[: len(MAGIC)].decode('ascii') == MAGIC:
             return True
-        elif metadata[-1 * len(MAGIC) + 1 :].decode() == MAGIC[1:]:
+        elif metadata[1: len(MAGIC)].decode('ascii') == MAGIC[1:]:
             print("Intel Raid Detected But Metadata has been deleted!!!")
             print("It has to be recovered manually!!")
             return False
     return False
 
-
-def parse_metadata(file_name) -> tuple[IMSM_SUPER, list[IMSM_DISK], list[IMSM_DEV]]:
-    metadata = read_first_meta_sec(file_name)
-    disk_offset = 0
-
+def parse_header(metadata, disk_offset):
     FORMAT = "<32sLLLLLLBBBBLLLLHHQ"
     FORMAT_SIZE = calcsize(FORMAT)
     imsm_super = IMSM_SUPER._make(unpack(FORMAT, metadata[:FORMAT_SIZE]))
     disk_offset += 0xD8
+    return imsm_super, disk_offset
+
+def parse_disk(metadata, disk_offset):
+    FORMAT = "<16sLLLLL"
+    FORMAT_SIZE = calcsize(FORMAT)
+    imsm_disk = IMSM_DISK._make(unpack(FORMAT, metadata[disk_offset : disk_offset + FORMAT_SIZE]))
+    disk_offset += 0x30
+    return imsm_disk, disk_offset
+
+def parse_dev(metadata, disk_offset):
+    FORMAT = "<16sLLLLBBBBHBBHBBLHB16s"
+    FORMAT_SIZE = calcsize(FORMAT)
+    device = unpack(FORMAT, metadata[disk_offset : disk_offset + FORMAT_SIZE])
+    disk_offset += 0x50
+
+    FORMAT = "<LLBBBBHH"
+    FORMAT_SIZE = calcsize(FORMAT)
+    volume = unpack(FORMAT, metadata[disk_offset : disk_offset + FORMAT_SIZE])
+    disk_offset += 0x20
+
+    FORMAT = "<LLLHBBBBBBLLL"
+    FORMAT_SIZE = calcsize(FORMAT)
+    map_info = unpack(FORMAT, metadata[disk_offset : disk_offset + FORMAT_SIZE])
+    disk_offset += 0x30
+
+    num_members = map_info[6]
+
+    FORMAT = "<" + "L" * num_members
+    FORMAT_SIZE = calcsize(FORMAT)
+    disk_ord_tbl = unpack(FORMAT, metadata[disk_offset : disk_offset + FORMAT_SIZE])
+    disk_offset += FORMAT_SIZE
+
+    imsm_map = IMSM_MAP._make([*map_info, disk_ord_tbl])
+    imsm_vol = IMSM_VOL._make([*volume, imsm_map])
+    imsm_dev = IMSM_DEV._make([*device, imsm_vol])
+
+    return imsm_dev, disk_offset
+    
+def parse_metadata(file_name) -> tuple[IMSM_SUPER, list[IMSM_DISK], list[IMSM_DEV]]:
+    metadata = read_first_meta_sec(file_name)
+    disk_offset = 0
+
+    imsm_super, disk_offset = parse_header(metadata, disk_offset)
 
     if imsm_super.mpb_size > SECTOR_SIZE:
         metadata += read_rest_meta_sec(file_name, imsm_super.mpb_size)
@@ -243,45 +295,14 @@ def parse_metadata(file_name) -> tuple[IMSM_SUPER, list[IMSM_DISK], list[IMSM_DE
 
     imsm_disk_l = []
     imsm_dev_l = []
-    FORMAT = "<16sLLLLL"
-    FORMAT_SIZE = calcsize(FORMAT)
+
     for _ in range(imsm_super.num_disks):
-        imsm_disk_l.append(
-            IMSM_DISK._make(
-                unpack(FORMAT, metadata[disk_offset : disk_offset + FORMAT_SIZE])
-            )
-        )
-        disk_offset += 0x30
+        imsm_disk, disk_offset = parse_disk(metadata, disk_offset)
+        imsm_disk_l.append(imsm_disk)
 
     for _ in range(imsm_super.num_raid_devs):
-        FORMAT = "<16sLLLLBBBBHBBHBBLHB16s"
-        FORMAT_SIZE = calcsize(FORMAT)
-        device = unpack(FORMAT, metadata[disk_offset : disk_offset + FORMAT_SIZE])
-        disk_offset += 0x50
-
-        FORMAT = "<LLBBBBHH"
-        FORMAT_SIZE = calcsize(FORMAT)
-        volume = unpack(FORMAT, metadata[disk_offset : disk_offset + FORMAT_SIZE])
-        disk_offset += 0x20
-
-        FORMAT = "<LLLHBBBBBBLLL"
-        FORMAT_SIZE = calcsize(FORMAT)
-        map_info = unpack(FORMAT, metadata[disk_offset : disk_offset + FORMAT_SIZE])
-        disk_offset += 0x30
-
-        num_members = map_info[6]
-
-        FORMAT = "<" + "L" * num_members
-        FORMAT_SIZE = calcsize(FORMAT)
-        disk_ord_tbl = unpack(FORMAT, metadata[disk_offset : disk_offset + FORMAT_SIZE])
-        disk_offset += FORMAT_SIZE
-
-        imsm_map = IMSM_MAP._make([*map_info, disk_ord_tbl])
-        imsm_vol = IMSM_VOL._make([*volume, imsm_map])
-        imsm_dev = IMSM_DEV._make([*device, imsm_vol])
-
+        imsm_dev, disk_offset = parse_dev(metadata, disk_offset)
         imsm_dev_l.append(imsm_dev)
-    print("------------Header------------")
 
     return (imsm_super, imsm_disk_l, imsm_dev_l)
 
@@ -305,11 +326,13 @@ def reconstruct(
         disk_fds = [
             open(
                 os.path.join(
-                    output_path, imsm_disk.serial.decode().rstrip("\x00") + ".img"
+                    #output_path, imsm_disk.serial.decode().rstrip("\x00") + ".img"
+                    os.curdir, file_name
                 ),
                 "rb",
             )
-            for imsm_disk in imsm_disk_l
+            #for imsm_disk in imsm_disk_l
+            for file_name in file_names
         ]
         DISK_NAME = (
             "DISK"
@@ -322,7 +345,7 @@ def reconstruct(
         with open(DISK_NAME, "wb") as f:
             print("Recover Started")
             print("DISK NAME: " + DISK_NAME)
-            # array size = RAID 가 차지하는 전체 크기 ex) RAID1을 100, 100으로 하면 array는 200
+            print_imsm_dev(dev)
             # super-intel.c #1330
             if raid_level == 0:
                 # set to lba
@@ -362,7 +385,7 @@ def reconstruct(
                         # .  p  .
                         # p  .  .
                         parity_idx = i % len(disk_ord_tbl)
-                        # pass parity strip
+                        # pass parity stripe
                         if i != 0 and parity_idx == 0:
                             continue
                         buf += disk_fds[ord].read(strip_size)
@@ -370,7 +393,8 @@ def reconstruct(
 
         [fd.close() for fd in disk_fds]
 
-
+               
+    
 def print_info(file_name, verbose):
     imsm_super, imsm_disk_l, imsm_dev_l = parse_metadata(file_name)
 

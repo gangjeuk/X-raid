@@ -18,7 +18,8 @@ PATH = os.path.join(PATH, "CrystalDiskInfo9_2_2")
 
 
 def check_is_raid():
-    # When bios setup is enabled, then we have to check by CrystalDiskInfo
+    # When bios setup is enabled, then we have to check the driver and storages with CrystalDiskInfo.
+    # Because, direct access to disk sector is not POSSIBLE. 
     _, controller_map, disk_list = parse_diskinfo_log()
     def when_bios_setup_enabled():
         r = re.compile(".*\+.*Intel.*RST")
@@ -137,6 +138,10 @@ def parse_diskinfo_log():
 
     return os_and_date, controller_map, disk_list
 
+
+def live_system_check():
+    run_crystaldiskinfo()
+    check_is_raid()
 
 if __name__ == "__main__":
     run_crystaldiskinfo()
