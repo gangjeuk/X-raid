@@ -4,7 +4,7 @@ import time
 from collections import namedtuple
 from typing import *
 from functools import reduce
-
+from enum import Enum
 
 MAGIC = "RAIDCore"
 
@@ -12,6 +12,14 @@ SECTOR_SIZE = 0x200
 ANCHOR_OFFSET = 0xA00000
 METADATA_OFFSET = 0xB00000
 
+class RAID_Level(Enum):
+    zero = 0
+    one = 1
+    five = 5
+    ten = 10
+    JBOD = "JBOD"
+    
+    
 ANCHOR = namedtuple(
     "ANCHOR",
     [
@@ -120,7 +128,6 @@ CONFIG = namedtuple(
 )
 
 
-# TODO: use ENUM for return value
 def get_raid_level(vdisk: VDISK):
     raid_signature = vdisk.raid_signature
     first_count = vdisk.first_count
@@ -128,16 +135,16 @@ def get_raid_level(vdisk: VDISK):
 
     if raid_signature == 0x1BF6:
         if first_count == 1 and second_count == 2:
-            return 1
+            return RAID_Level.one
         elif first_count > 1 and second_count == 1:
-            return 0
+            return RAID_Level.zero
         elif first_count > 1 and second_count == 2:
-            return 10
+            return RAID_Level.ten
     elif raid_signature == 0x1BF5:
         if first_count == 1 and second_count > 2:
-            return 5
+            return RAID_Level.five
     elif raid_signature == 0x1BF7:
-        return "JBOD"
+        return RAID_Level.JBOD
 
 
 def get_stripe_size(vdisk: VDISK):
@@ -186,7 +193,7 @@ def dump_disk(disk: DISK, verbose=False):
 
 def dump_vdisk(vdisk: VDISK, verbose=False):
     print("======== VDISK Info =========")
-    print("ID: {}".format(vdisk.id))
+    print("ID: {}".format(hex(vdisk.id)))
     print("RAID Level: {}".format(get_raid_level(vdisk)))
     print("Stripe size: {}".format(get_stripe_size(vdisk)))
     print("Size: {}".format(get_rounded_size(vdisk.sector_count * SECTOR_SIZE, "GB")))
@@ -320,7 +327,7 @@ def reconstruct(file_names: list[str], output_path: str):
         for config in vdisk.config:
             fd_disk_map[config.id] = open(file_disk_map[config.id], "rb")
 
-        output_name = str(vdisk.id) + "_RAID-" + str(raid_level) + "_" + size + ".img"
+        output_name = str(hex(vdisk.id)) + "_RAID" + str(raid_level) + "_" + size + ".img"
         print("Reconstructing VDISK ID: {}".format(output_name))
         dump_vdisk(vdisk, True)
         with open(os.path.join(output_path, output_name), "wb") as fw:
@@ -328,7 +335,8 @@ def reconstruct(file_names: list[str], output_path: str):
             for config in vdisk.config:
                 fd_disk_map[config.id].seek(config.begin * SECTOR_SIZE, os.SEEK_SET)
 
-            if raid_level == 0:
+            if raid_level == RAID_Level.zero:
+                continue
                 # calc how many times to loop
                 for i in range((vdisk.config[0].end * SECTOR_SIZE) // stripe_size):
                     # reconstruct by disk order
@@ -338,15 +346,20 @@ def reconstruct(file_names: list[str], output_path: str):
                         data += fd_disk_map[config.id].read(stripe_size)
                     fw.write(data)
 
-            elif raid_level == 1:
+            elif raid_level == RAID_Level.one:
+                continue
                 # calc how many times to loop
                 for i in range((vdisk.config[0].end * SECTOR_SIZE) // stripe_size):
                     data = fd_disk_map[vdisk.config[0].id].read(stripe_size)
                     fw.write(data)
-
-            # TODO: RAID10 and JBOD
-            # elif
-
+            
+            elif raid_level == RAID_Level.JBOD:
+                for config in vdisk.config:
+                    # calc how many times to loop
+                    for i in range((config.end * SECTOR_SIZE) // stripe_size):
+                        data = fd_disk_map[config.id].read(stripe_size)
+                        fw.write(data)
+                        
         map(lambda x: x.close(), fd_disk_map.keys())
 
     return 1
