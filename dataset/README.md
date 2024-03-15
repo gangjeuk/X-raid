@@ -24,7 +24,7 @@ The following sections detail the data structure transitions for each case, alon
 - Volume Deletion: Subsequently, the RAID 0 volume (Volume 1) was deleted.
 The data structure transition for AMD RAID is visualized in the image below
 
-![AMD](/src/img/AMD%20delete.png)
+![AMD](/AIRR/src/img/AMD%20delete.png)
 
 ## Intel RAID
 
