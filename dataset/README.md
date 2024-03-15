@@ -10,7 +10,7 @@ AMD - Normal & Deleted
 
 Due to their large size, the files are uploaded to cloud storage.
 
-Here's the link: https://drive.google.com/drive/folders/1HN7gZ99xrn05FYJwakcVAFjw2Wbtg18X?usp=sharing
+Here's the link: [Image files](https://drive.google.com/drive/folders/1HN7gZ99xrn05FYJwakcVAFjw2Wbtg18X?usp=sharing)
 
 The following sections detail the data structure transitions for each case, along with visual representations.
 
