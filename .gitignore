@@ -2,3 +2,4 @@ dev/**
 *.pyc
 __pycache__/
 **.pptx
+dataset/**

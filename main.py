@@ -42,6 +42,8 @@ if __name__ == "__main__":
     )
 
     parser.add_argument("--files", action="extend", nargs='+', help="Files for reconstruction")
+        
+    parser.add_argument("--index", help="Index number of history(AMD RAID only)", default=-1, type=int)
 
     parser.add_argument("--output_path", help="Output directory of reconstructed VDisk", type=str)
 
@@ -57,7 +59,10 @@ if __name__ == "__main__":
             \tpython3 main.py --mode live 
             Dead: 
             \tpython3 main.py --mode dead --system Intel --help \n
-            \tpython3 main.py --mode dead --system AMD -r --files file1.img file2.img \n 
+            \tpython3 main.py --mode dead --system Intel -r --files file1.img file2.img --output_path . \n 
+            \tpython3 main.py --mode dead --system AMD -r --files file1.img file2.img --index 10 --output_path . \n 
+            \tpython3 main.py --mode dead --system AMD -i \n
+            \tpython3 main.py --mode dead --system AMD -i --index 4 \n
             \tpython3 main.py --mode dead --system AMD --history \n
             Helper:
             \tpython3 main.py --mode helper --system Intel -r --files file1.img file2.img
@@ -79,11 +84,11 @@ if __name__ == "__main__":
             if args.history:
                 AMD.print_history(args.files[0])
             elif args.info:
-                AMD.print_info(args.files[0], args.verbose)
+                AMD.print_info(args.files[0], args.verbose, args.index)
             elif args.reconstruct:
                 print(args.files)
                 print(args.output_path)
-                AMD.reconstruct(args.files, args.output_path)
+                AMD.reconstruct(args.files, args.output_path, args.index)
                 
     elif args.mode == "helper":
         if args.system == "Intel":

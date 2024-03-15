@@ -296,7 +296,7 @@ def parse_metadata(file_name, index = -1) -> Tuple[ANCHOR, HEADER, list[DISK], l
     return anchor, header, disk_lst, vdisk_lst
 
 
-def reconstruct(file_names: list[str], output_path: str):
+def reconstruct(file_names: list[str], output_path: str, index = -1):
     if output_path is None:
         print("No output path")
         return
@@ -305,7 +305,7 @@ def reconstruct(file_names: list[str], output_path: str):
 
     # Check every disk image and match DiskID with file
     for file_name in file_names:
-        anchor, header, disk_lst, vdisk_lst = parse_metadata(file_name)
+        anchor, header, disk_lst, vdisk_lst = parse_metadata(file_name, index)
         file_disk_map[anchor.disk_id] = file_name
 
     # TODO: Metadata validation for each disk
@@ -317,7 +317,7 @@ def reconstruct(file_names: list[str], output_path: str):
     # RAID10 not tested
     # JBOD not tested
 
-    anchor, header, disk_lst, vdisk_lst = parse_metadata(file_names[0])
+    anchor, header, disk_lst, vdisk_lst = parse_metadata(file_names[0], index)
     for vdisk in vdisk_lst:
         output_name = ""
         stripe_size = 1 << (15 + vdisk.cts)
@@ -336,7 +336,6 @@ def reconstruct(file_names: list[str], output_path: str):
                 fd_disk_map[config.id].seek(config.begin * SECTOR_SIZE, os.SEEK_SET)
 
             if raid_level == RAID_Level.zero:
-                continue
                 # calc how many times to loop
                 for i in range((vdisk.config[0].end * SECTOR_SIZE) // stripe_size):
                     # reconstruct by disk order
@@ -347,7 +346,6 @@ def reconstruct(file_names: list[str], output_path: str):
                     fw.write(data)
 
             elif raid_level == RAID_Level.one:
-                continue
                 # calc how many times to loop
                 for i in range((vdisk.config[0].end * SECTOR_SIZE) // stripe_size):
                     data = fd_disk_map[vdisk.config[0].id].read(stripe_size)
@@ -402,8 +400,8 @@ def print_history(file_name, verbose = False):
             list(map(dump_vdisk, list(deleted_vdisk)))
             print()
             
-def print_info(file_name, verbose):
-    anchor, _, disk_list, vdisk_list = parse_metadata(file_name)
+def print_info(file_name, verbose, index = -1):
+    anchor, _, disk_list, vdisk_list = parse_metadata(file_name, index)
 
     dump_anchor(anchor)
     
