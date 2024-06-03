@@ -37,7 +37,6 @@ def raid_level_helper(file_names, dev_map):
         print("Something went wrong. RAID level has not been set in previous step")
         exit(1)
     # Only one disk should have EFI or BR. If not, it must be RAID1
-    print(dev_map)
     if len(list(filter(lambda x: dev_map[x]["order"] == 1, dev_map))) != 1:
         if len(file_names) == 2:
             print("RAID level must be 1. Check image files")
