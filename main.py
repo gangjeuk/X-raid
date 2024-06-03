@@ -4,6 +4,21 @@ import argparse
 from live import live_system_check
 import helper
 
+
+ASCII_LOGO = '''\
+.----------------.  .----------------.  .----------------.  .----------------. 
+| .--------------. || .--------------. || .--------------. || .--------------. |
+| |      __      | || |     _____    | || |  _______     | || |  _______     | |
+| |     /  \     | || |    |_   _|   | || | |_   __ \    | || | |_   __ \    | |
+| |    / /\ \    | || |      | |     | || |   | |__) |   | || |   | |__) |   | |
+| |   / ____ \   | || |      | |     | || |   |  __ /    | || |   |  __ /    | |
+| | _/ /    \ \_ | || |     _| |_    | || |  _| |  \ \_  | || |  _| |  \ \_  | |
+| ||____|  |____|| || |    |_____|   | || | |____| |___| | || | |____| |___| | |
+| |              | || |              | || |              | || |              | |
+| '--------------' || '--------------' || '--------------' || '--------------' |
+ '----------------'  '----------------'  '----------------'  '----------------'\
+'''
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="AIRR(AMD & Intel RAID Reconstructor)",
@@ -35,7 +50,7 @@ if __name__ == "__main__":
         "-i", "--info", action="store_true", help="Show Virtual Disk Information"
     )
 
-    parser.add_argument("-v", "--verbose", action="store_true")
+    parser.add_argument("-v", "--verbose", action="store_true", help="AIRR will try to provide detailed and extensive info. Default value is True")
 
     parser.add_argument(
         "-r", "--reconstruct", action="store_true", help="Reconstruct Virtual Disk"
@@ -47,23 +62,26 @@ if __name__ == "__main__":
 
     parser.add_argument("--output_path", help="Output directory of reconstructed VDisk", type=str)
 
-    parser.add_argument("--helper_args", action="extend", nargs='+', help="Args for helper mode: stripe size, start offset, end offset, raid level", type=int)
+    parser.add_argument("--helper_args", action="extend", nargs='+', help="Args for helper mode: stripe size, start offset, vdisk size, raid level", type=int)
     args = parser.parse_args()
 
-    if args.help or args.system is None or args.mode is None:
-        print(args.system)
+    if args.help:
+        print(ASCII_LOGO)
         parser.print_help()
+        exit(0)
+    elif args.system is None or args.mode is None:
+        print("Please check argument!!")
         print(
             """ex)\n 
             Live:
             \tpython3 main.py --mode live 
             Dead: 
-            \tpython3 main.py --mode dead --system Intel --help \n
-            \tpython3 main.py --mode dead --system Intel -r --files file1.img file2.img --output_path . \n 
-            \tpython3 main.py --mode dead --system AMD -r --files file1.img file2.img --index 10 --output_path . \n 
-            \tpython3 main.py --mode dead --system AMD -i \n
-            \tpython3 main.py --mode dead --system AMD -i --index 4 \n
-            \tpython3 main.py --mode dead --system AMD --history \n
+            \tpython3 main.py --mode dead --system Intel --help 
+            \tpython3 main.py --mode dead --system Intel -r --files file1.img file2.img --output_path . 
+            \tpython3 main.py --mode dead --system AMD -r --files file1.img file2.img --index 10 --output_path . 
+            \tpython3 main.py --mode dead --system AMD -i
+            \tpython3 main.py --mode dead --system AMD -i --index 4
+            \tpython3 main.py --mode dead --system AMD --history    
             Helper:
             \tpython3 main.py --mode helper --system Intel -r --files file1.img file2.img
             \tpython3 main.py --mode helper --system Intel -r --files file1.img file2.img --helper_args 65536 0 118749790208 0"""

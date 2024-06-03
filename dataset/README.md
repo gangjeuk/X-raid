@@ -1,12 +1,12 @@
 # Dataset
 
-Dataset for Intel & AMD RAID
+Dataset for AMD & Intel RAID
 
 There are four total cases:
 
-Intel - Normal & Deleted
-
 AMD - Normal & Deleted
+
+Intel - Normal & Deleted
 
 Due to their large size, the files are uploaded to cloud storage.
 

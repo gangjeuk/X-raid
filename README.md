@@ -1,12 +1,18 @@
 # AIRR
 --------------
-***AIRR*** (AMD & Intel RAID Reconstructor) is a tool designed to help with reassembling RAID images and assisting with RAID reconstruction, especially for Intel & AMD RAID.
+***AIRR*** (AMD & Intel RAID Reconstructor) is a tool designed to automate constructing RAID images, especially for Intel & AMD RAID. Check Usage section for more details.
 
+1. [AIRR](#airr)
+2. [Option](#option)
+3. [Usage](#usage)
+4. [Requirements](#requirements)
 
 # Option
+
 ```
 $ python main.py [--mode {dead,live,helper}] [--system {Intel,AMD}] [-h] [-H] [-i] [-v] [-r] [--files FILES] [--output_path OUTPUT_PATH]
 ```
+
 |option|help|
 |------|----|       
 | --mode {dead, live, helper}         | Type of system: dead \| live \| helper(Only for Intel) |
@@ -14,47 +20,51 @@ $ python main.py [--mode {dead,live,helper}] [--system {Intel,AMD}] [-h] [-H] [-
 | -h, --help                    |Show each system's help message|
 | -H, --history                 |Show history of Virtual Disk (Only for AMD)|
 | -i, --info                    |Show Virtual Disk Information|
-| -v, --verbose                 |verbose mode|
+| -v, --verbose                 |verbose mode for detailed Information|
 | -r, --reconstruct             |Reconstruct Virtual Disk|
 | --files FILES                 |Files for reconstruction|
 | --output_path OUTPUT_PATH     |Output directory of reconstructed VDisk|
 | --helper_args                 | Args for helper mode(Only for helper mode)|
 
-## Usage
+# Usage
 AIRR offers three modes for different purposes
 
-1. Dead: Image Reassemble
+1. Dead: Image Reconstruct
 2. Live: Live system checking
 3. Helper: Helps with Intel RAID reconstruction
 
 
-### Dead system (Image reassemble)
-This mode allows you to reassemble separate RAID configured storages into a single volume.
+## Dead system (Image Reconstruct)
+This mode allows you to reconstruct separate RAID configured storages into a single volume.
 
 Use the --mode dead option.
 
 **Examples**
 ```
-$ python3 main.py --mode dead --system Intel --help  # Get help for dead mode with Intel system
-# Reassemble AMD RAID images with default output path
+# Get help for dead mode with Intel system
+$ python3 main.py --mode dead --system Intel --help  
+
+# Reconstruct AMD RAID images with default output path
 $ python3 main.py --mode dead --system AMD -r --files image_file1.img image_file2.img --output_path .  
-# Reassemble Intel RAID with custom output path (Serial number used as image file name)
+
+# Reconstruct Intel RAID with custom output path (Serial number used as image file name)
 $ python3 main.py --mode dead --system Intel -r --files S3YKNC0N108175B.img S3YKNC0Z134189U.img --output_path /path/to/output  
 ```
 **Note**: For Intel RAID, the image file names should match the product's serial number.
 
 
-### Live system
+## Live system
 This mode checks whether the live system is currently using RAID and searches for evidence of past RAID usage on the storage devices.
 
 Use the --mode live option.
 
 **Example**
+
 ```
 $ python3 main.py --mode live  # Check live system for RAID usage
 ```
 
-### Helper 
+## Helper 
 This mode helps with Intel RAID reconstruction in two steps:
 
 1. Check helper message
@@ -67,6 +77,7 @@ AIRR analyzes the image files to find hints for reconstruction, including disk o
 Use the --mode helper --system Intel options.
 
 **Example**
+
 ```python
 $ python3 main.py --mode helper --system Intel -r --files S1SUNSAG353817Z.img S3YKNC0Z134189U.img
 Checking disk order...
@@ -79,24 +90,30 @@ Start offset candidates: {0, 8388608, 118758178816, 118749790208}
 ```
 
 ### Step2: Reconstruction (Requires additional arguments)
-Based on the information from *step 1*, you can attempt reconstruction using the --helper_args option. 
+Based on the informations from *step 1*, you can attempt reconstruction using the --helper_args option. 
 
-This option specifies additional information for reconstruction, such as stripe size.
+The option arguments are as follows: stripe size, start offset, vdisk size, raid level.
 
-Unfortunately, guessing stripe size rely on human guessing.
+Options are used to specify additional informations for reconstruction, such as stripe size. 
+
+Unfortunately, guessing stripe size rely on human guessing. (Such as, 16KB, 32KB, 64KB, 128KB ...)
 
 **However**, depends on file system, we can get few useful informations for guessing stripe size.
 For example, for NTFS, we can utilize $Upcase file([128KB file full of capital letters](https://flatcap.github.io/linux-ntfs/ntfs/files/upcase.html)).
 
-More details can be found in .pdf file in `src`.
+More details can be found in PDF file in `src`.
 
 **Example**
+Inferred arguments in *step 1* are order of disks, RAID level, and candidates of start offset. 
+
+Then we can try reconstruction with inferenced values.
 ```python
-$ python3 main.py --mode helper --system Intel -r --files file1.img file2.img --helper_args 65536 0 118749790208 0
+$ python3 main.py --mode helper --system Intel -r --files S1SUNSAG353817Z.img S3YKNC0Z134189U.img --helper_args 65536 0 118749790208 0
 ```
 **Note**
 When reconstructing deleted volumes, 
 the order of the image file names must match the actual order of the disks (first disk comes first in the file names).
+Size of vdisk in example is set to be the farthest distance between the candidates. 
 
 # Requirements
 --------------
@@ -106,8 +123,8 @@ However, for checking live systems, you'll need:
 
 However, for Live system checking, we need to solve two problems for this project.
 
-1. pywin32: This package is used to read storage size accurately. Install it with python -m pip install pywin32.
-2. CrystalDiskInfo: This tool provides detailed information about drivers and storage. It will be included in the release
+1. pywin32: Used to read storage size accurately. Install it with python -m pip install pywin32.
+2. CrystalDiskInfo: Provides detailed information about drivers and storage. It will be included in the release
 
 **Install**
 ```
