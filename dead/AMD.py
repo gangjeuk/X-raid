@@ -12,14 +12,15 @@ SECTOR_SIZE = 0x200
 ANCHOR_OFFSET = 0xA00000
 METADATA_OFFSET = 0xB00000
 
+
 class RAID_Level(Enum):
     zero = 0
     one = 1
     five = 5
     ten = 10
     JBOD = "JBOD"
-    
-    
+
+
 ANCHOR = namedtuple(
     "ANCHOR",
     [
@@ -63,7 +64,7 @@ DISK = namedtuple(
         "sector_count",
     ],
 )
-'''
+"""
 VDISK = namedtuple(
     "VDISK",
     [
@@ -89,7 +90,7 @@ VDISK = namedtuple(
         "config",
     ],
 )
-'''
+"""
 VDISK = namedtuple(
     "VDISK",
     [
@@ -216,7 +217,10 @@ def dump_vdisk(vdisk: VDISK, verbose=False):
             print()
         print("----------------------------------------------------")
 
-def parse_metadata(file_name, index = -1) -> Tuple[ANCHOR, HEADER, list[DISK], list[VDISK]]:
+
+def parse_metadata(
+    file_name, index=-1
+) -> Tuple[ANCHOR, HEADER, list[DISK], list[VDISK]]:
     FORMAT = ""
     FORMAT_SIZE = 0
     f = open(file_name, "rb")
@@ -238,7 +242,6 @@ def parse_metadata(file_name, index = -1) -> Tuple[ANCHOR, HEADER, list[DISK], l
     FORMAT_SIZE = calcsize(FORMAT)
     anchor = ANCHOR._make(unpack(FORMAT, data[:FORMAT_SIZE]))
 
-
     # Read Header
     FORMAT = "<QLL8pL8pLLLL8pLL"
     FORMAT_SIZE = calcsize(FORMAT)
@@ -250,13 +253,13 @@ def parse_metadata(file_name, index = -1) -> Tuple[ANCHOR, HEADER, list[DISK], l
             print("Index Error")
             return None
         # search nth version
-        f.seek(0xb00000, os.SEEK_SET)
+        f.seek(0xB00000, os.SEEK_SET)
         for i in range(index):
             data = f.read(SECTOR_SIZE)
             header = HEADER._make(unpack(FORMAT, data[:FORMAT_SIZE]))
             # need to go back
             f.seek(header.metadata_size - SECTOR_SIZE, os.SEEK_CUR)
-            
+
     data = f.read(SECTOR_SIZE)
     header = HEADER._make(unpack(FORMAT, data[:FORMAT_SIZE]))
 
@@ -296,11 +299,11 @@ def parse_metadata(file_name, index = -1) -> Tuple[ANCHOR, HEADER, list[DISK], l
     return anchor, header, disk_lst, vdisk_lst
 
 
-def reconstruct(file_names: list[str], output_path: str, index = -1):
+def reconstruct(file_names: list[str], output_path: str, index=-1):
     if output_path is None:
         print("No output path")
         return
-    
+
     file_disk_map = {}
 
     # Check every disk image and match DiskID with file
@@ -327,7 +330,9 @@ def reconstruct(file_names: list[str], output_path: str, index = -1):
         for config in vdisk.config:
             fd_disk_map[config.id] = open(file_disk_map[config.id], "rb")
 
-        output_name = str(hex(vdisk.id)) + "_RAID" + str(raid_level) + "_" + size + ".img"
+        output_name = (
+            str(hex(vdisk.id)) + "_RAID" + str(raid_level) + "_" + size + ".img"
+        )
         print("Reconstructing VDISK ID: {}".format(output_name))
         dump_vdisk(vdisk, True)
         with open(os.path.join(output_path, output_name), "wb") as fw:
@@ -350,30 +355,38 @@ def reconstruct(file_names: list[str], output_path: str, index = -1):
                 for i in range((vdisk.config[0].end * SECTOR_SIZE) // stripe_size):
                     data = fd_disk_map[vdisk.config[0].id].read(stripe_size)
                     fw.write(data)
-            
+
+            elif raid_level == RAID_Level.five:
+                for i in range((vdisk.config[0].end * SECTOR_SIZE) // stripe_size):
+                    data = b""
+                    for idx, config in enumerate(vdisk.config):
+                        if idx % len(vdisk.config) == len(vdisk.config) -1:
+                            continue
+                        data += fd_disk_map[config.id].read(stripe_size)
+                    fw.write(data)
             elif raid_level == RAID_Level.JBOD:
                 for config in vdisk.config:
                     # calc how many times to loop
                     for i in range((config.end * SECTOR_SIZE) // stripe_size):
                         data = fd_disk_map[config.id].read(stripe_size)
                         fw.write(data)
-                        
+
         map(lambda x: x.close(), fd_disk_map.keys())
 
     return 1
 
 
-def print_history(file_name, verbose = False):
+def print_history(file_name, verbose=False):
     anchor, _, _, _ = parse_metadata(file_name)
-    
+
     print("========= AMD RAID History ==========")
     for i in range(anchor.ddf_count - 1):
         _, _, bf_disk_list, bf_vdisk_list = parse_metadata(file_name, i)
         _, _, af_disk_list, af_vdisk_list = parse_metadata(file_name, i + 1)
-        
+
         added_disk = set(af_disk_list) - set(bf_disk_list)
         deleted_disk = set(bf_disk_list) - set(af_disk_list)
-        
+
         if added_disk:
             print("======= Disk added =======")
             list(map(dump_disk, list(added_disk)))
@@ -382,15 +395,15 @@ def print_history(file_name, verbose = False):
             print("======= Disk deleted =======")
             list(map(dump_disk, list(deleted_disk)))
             print()
-            
+
         for i in range(len(bf_vdisk_list)):
-            bf_vdisk_list[i] = bf_vdisk_list[i]._replace(config = 0)
+            bf_vdisk_list[i] = bf_vdisk_list[i]._replace(config=0)
         for i in range(len(af_vdisk_list)):
-            af_vdisk_list[i] = af_vdisk_list[i]._replace(config = 0)
-            
+            af_vdisk_list[i] = af_vdisk_list[i]._replace(config=0)
+
         added_vdisk = set(af_vdisk_list) - set(bf_vdisk_list)
-        deleted_vdisk = set(bf_vdisk_list) - set(af_vdisk_list)     
-           
+        deleted_vdisk = set(bf_vdisk_list) - set(af_vdisk_list)
+
         if added_vdisk:
             print("======= VDisk created =======")
             list(map(dump_vdisk, list(added_vdisk)))
@@ -399,12 +412,13 @@ def print_history(file_name, verbose = False):
             print("======= VDisk deleted =======")
             list(map(dump_vdisk, list(deleted_vdisk)))
             print()
-            
-def print_info(file_name, verbose, index = -1):
+
+
+def print_info(file_name, verbose, index=-1):
     anchor, _, disk_list, vdisk_list = parse_metadata(file_name, index)
 
     dump_anchor(anchor)
-    
+
     for i, disk in enumerate(disk_list):
         if i == 0:
             continue
@@ -419,8 +433,10 @@ def print_help():
     print("python main.py --system AMD -i [-v] --files [disk_image.img]")
     print("\n")
     print("Reconstruction")
-    print("python main.py --system AMD -r --files [disk_image1.img] --files [disk_image2.img] --output_path ./output")
-    
+    print(
+        "python main.py --system AMD -r --files [disk_image1.img] --files [disk_image2.img] --output_path ./output"
+    )
+
 
 if __name__ == "__main__":
     file_name = "data/AMD/hex"

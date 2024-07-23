@@ -151,6 +151,12 @@ def reconstruct(
         + str(raid_level)
         + ".img"
     )
+    
+    if not os.path.exists(output_path):
+        print("Output path not exists!")
+        print("Create directory")
+        os.makedirs(output_path)
+    
     with open(os.path.join(output_path, DISK_NAME), "wb") as f:
         print("Recover Started")
         print("DISK NAME: " + DISK_NAME)
