@@ -366,11 +366,6 @@ def reconstruct(
                     buf += disk_fds[disk_ord_tbl[0]].read(strip_size)
                     f.write(buf)
 
-            # TODO:
-            # RAID0 tested
-            # RAID1 tested
-            # RAID5 tested
-            # RAID10 not tested
 
             if raid_level == 5:
                 # set to lba
