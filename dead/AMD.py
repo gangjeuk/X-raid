@@ -311,14 +311,7 @@ def reconstruct(file_names: list[str], output_path: str, index=-1):
         anchor, header, disk_lst, vdisk_lst = parse_metadata(file_name, index)
         file_disk_map[anchor.disk_id] = file_name
 
-    # TODO: Metadata validation for each disk
     # Use metadata in the first file in list for now
-
-    # TODO
-    # RAID0 tested
-    # RAID1 tested
-    # RAID10 not tested
-    # JBOD not tested
 
     anchor, header, disk_lst, vdisk_lst = parse_metadata(file_names[0], index)
     for vdisk in vdisk_lst:
