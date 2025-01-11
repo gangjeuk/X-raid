@@ -359,8 +359,10 @@ def reconstruct(file_names: list[str], output_path: str, index=-1):
             elif raid_level == RAID_Level.five:
                 for i in range((vdisk.config[0].end * SECTOR_SIZE) // stripe_size):
                     data = b""
+                    parity_idx = i % len(vdisk.config)
                     for idx, config in enumerate(vdisk.config):
-                        if idx % len(vdisk.config) == len(vdisk.config) -1:
+                        # Skip parity bit
+                        if idx % len(vdisk.config) == parity_idx:
                             continue
                         data += fd_disk_map[config.id].read(stripe_size)
                     fw.write(data)
