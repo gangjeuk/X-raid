@@ -199,7 +199,7 @@ def dump_vdisk(vdisk: VDISK, verbose=False):
     print("Stripe size: {}".format(get_stripe_size(vdisk)))
     print("Size: {}".format(get_rounded_size(vdisk.sector_count * SECTOR_SIZE, "GB")))
     print("Total disk count: {}".format(vdisk.total_count))
-    print("Name: {}".format(vdisk.name))
+    print("Name: {}".format(vdisk.name.decode('utf-8')))
     if verbose is True:
         print("----------------------------------------------------")
         print("[Order] Disk ID: Start Offset / End Offset")
@@ -255,14 +255,20 @@ def parse_metadata(
         # search nth version
         f.seek(0xB00000, os.SEEK_SET)
         for i in range(index):
+            if f.tell() // SECTOR_SIZE == anchor.offset_sec:
+                break
             data = f.read(SECTOR_SIZE)
             header = HEADER._make(unpack(FORMAT, data[:FORMAT_SIZE]))
-            # need to go back
-            f.seek(header.metadata_size - SECTOR_SIZE, os.SEEK_CUR)
+            while header.signature != 0xE1E10000:
+                data = f.read(SECTOR_SIZE)
+                header = HEADER._make(unpack(FORMAT, data[:FORMAT_SIZE]))
+                
+        f.seek(-1 * SECTOR_SIZE, os.SEEK_CUR)
 
     data = f.read(SECTOR_SIZE)
     header = HEADER._make(unpack(FORMAT, data[:FORMAT_SIZE]))
-
+    if header.metadata_size == 0:
+        return anchor, header, disk_lst, vdisk_lst
     data = f.read(header.disk_size)
     for i in range(header.disk_size // 0x80):
         FORMAT = "<LQHH12pQ"
@@ -274,9 +280,11 @@ def parse_metadata(
     vdisk_offset = 0
     data = f.read(header.vdisk_size)
     while vdisk_offset != header.vdisk_size:
-        FORMAT = "<LLLL28pQ28pQ16pLLLL12pL32pH6p24sc"
+        # FORMAT = "<LLLL28pQ28pQ16pLLLL12pL32pH6p24sc"
         FORMAT = "<LLLL28pQ28pQ16pLLLL48pH6p24s72pHc"
         FORMAT_SIZE = calcsize(FORMAT)
+        if vdisk_offset + FORMAT_SIZE > header.vdisk_size:
+            break
         vdisk_lst.append(
             VDISK._make(unpack(FORMAT, data[vdisk_offset : vdisk_offset + FORMAT_SIZE]))
         )
@@ -374,8 +382,9 @@ def reconstruct(file_names: list[str], output_path: str, index=-1):
 def print_history(file_name, verbose=False):
     anchor, _, _, _ = parse_metadata(file_name)
 
-    print("========= AMD RAID History ==========")
-    for i in range(anchor.ddf_count - 1):
+    print("============ AMD RAID History =============")
+    for i in range(anchor.ddf_count):
+        print("======== {0}-th record ========".format(i))
         _, _, bf_disk_list, bf_vdisk_list = parse_metadata(file_name, i)
         _, _, af_disk_list, af_vdisk_list = parse_metadata(file_name, i + 1)
 
@@ -383,11 +392,11 @@ def print_history(file_name, verbose=False):
         deleted_disk = set(bf_disk_list) - set(af_disk_list)
 
         if added_disk:
-            print("======= Disk added =======")
+            print("--------- Disk connected ---------")
             list(map(dump_disk, list(added_disk)))
             print()
         if deleted_disk:
-            print("======= Disk deleted =======")
+            print("--------- Disk disconnected ---------")
             list(map(dump_disk, list(deleted_disk)))
             print()
 
@@ -400,14 +409,13 @@ def print_history(file_name, verbose=False):
         deleted_vdisk = set(bf_vdisk_list) - set(af_vdisk_list)
 
         if added_vdisk:
-            print("======= VDisk created =======")
+            print("--------- VDisk created ---------")
             list(map(dump_vdisk, list(added_vdisk)))
             print()
         if deleted_vdisk:
-            print("======= VDisk deleted =======")
+            print("--------- VDisk deleted ---------")
             list(map(dump_vdisk, list(deleted_vdisk)))
             print()
-
 
 def print_info(file_name, verbose, index=-1):
     anchor, _, disk_list, vdisk_list = parse_metadata(file_name, index)
