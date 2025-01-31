@@ -364,6 +364,7 @@ def reconstruct(file_names: list[str], output_path: str, index=-1):
                     for idx, config in enumerate(vdisk.config):
                         # Skip parity bit
                         if idx % len(vdisk.config) == parity_idx:
+                            fd_disk_map[config.id].seek(stripe_size, 1)
                             continue
                         data += fd_disk_map[config.id].read(stripe_size)
                     fw.write(data)
