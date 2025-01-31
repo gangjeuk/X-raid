@@ -1,9 +1,9 @@
 # AIRR
 --------------
-***AIRR*** (AMD & Intel RAID Reconstructor) is a tool designed to automate constructing RAID images, especially for Intel & AMD RAID. Check Usage section for more details.
+***AIRR*** (AMD & Intel RAID Reconstructor) is a tool designed to automate the reconstruction of RAID images, particularly for Intel & AMD RAID systems. Check the Usage section for more details.
 
 1. [AIRR](#airr)
-2. [Option](#option)
+2. [Options](#options)
 3. [Usage](#usage)
 4. [Requirements](#requirements)
 
@@ -13,25 +13,25 @@
 $ python main.py [--mode {dead,live,helper}] [--system {Intel,AMD}] [-h] [-H] [-i] [-v] [-r] [--files FILES] [--output_path OUTPUT_PATH]
 ```
 
-|option|help|
+|option|Description|
 |------|----|       
-| --mode {dead, live, helper}         | Type of system: dead \| live \| helper(Only for Intel) |
-| --system {Intel,AMD}          |Type of system: Intel \| AMD|
-| -h, --help                    |Show each system's help message|
-| -H, --history                 |Show history of Virtual Disk (Only for AMD)|
-| -i, --info                    |Show Virtual Disk Information|
-| -v, --verbose                 |verbose mode for detailed Information|
-| -r, --reconstruct             |Reconstruct Virtual Disk|
-| --files FILES                 |Files for reconstruction|
-| --output_path OUTPUT_PATH     |Output directory of reconstructed VDisk|
-| --helper_args                 | Args for helper mode(Only for helper mode)|
+| --mode {dead, live, helper}         | Select the mode: dead \| live \| helper (Only for Intel) |
+| --system {Intel,AMD}          |Select the system type: Intel \| AMD|
+| -h, --help                    |Show help message for each system|
+| -H, --history                 |Show history of virtual disk (Only for AMD)|
+| -i, --info                    |Show virtual disk Information|
+| -v, --verbose                 |Enable verbose mode for detailed output|
+| -r, --reconstruct             |Reconstruct virtual disk|
+| --files FILES                 |Specify files for reconstruction|
+| --output_path OUTPUT_PATH     |Set the output directory for the reconstructed virtual disk|
+| --helper_args                 |Set additional arguments for helper mode (Only for helper mode)|
 
 # Usage
 AIRR offers three modes for different purposes
 
-1. Dead: Image Reconstruct
-2. Live: Live system checking
-3. Helper: Helps with Intel RAID reconstruction
+1. Dead: Reconstruct RAID images
+2. Live: Check live systems for RAID usage
+3. Helper: Assist with Intel RAID reconstruction
 
 
 ## Dead system (Image Reconstruct)
@@ -50,11 +50,11 @@ $ python3 main.py --mode dead --system AMD -r --files image_file1.img image_file
 # Reconstruct Intel RAID with custom output path (Serial number used as image file name)
 $ python3 main.py --mode dead --system Intel -r --files S3YKNC0N108175B.img S3YKNC0Z134189U.img --output_path /path/to/output  
 ```
-**Note**: For Intel RAID, the image file names should match the product's serial number.
+**Note**: For Intel RAID, the image file names should match the product's serial numbers.
 
 
 ## Live system
-This mode checks whether the live system is currently using RAID and searches for evidence of past RAID usage on the storage devices.
+This mode checks whether the live system is currently using RAID and searches for evidence of past RAID usage on storage devices.
 
 Use the --mode live option.
 
@@ -72,7 +72,7 @@ This mode helps with Intel RAID reconstruction in two steps:
 
 ### Step1: Check Helper Message
 
-AIRR analyzes the image files to find hints for reconstruction, including disk order, RAID level, and start offset list. 
+AIRR analyzes the image files to gather reconstruction hints, such as disk order, RAID level, and start offset candidates. 
 
 Use the --mode helper --system Intel options.
 
@@ -83,25 +83,25 @@ $ python3 main.py --mode helper --system Intel -r --files S1SUNSAG353817Z.img S3
 Checking disk order...
 Found Partition Record. First disk: S1SUNSAG353817Z.img, Offset: 0x200
 Checking RAID level...
-Gussed RAID level: RAID0
+Guessed RAID level: RAID0
 Checking start offset...
 Might take some time...
 Start offset candidates: {0, 8388608, 118758178816, 118749790208}
 ```
 
 ### Step2: Reconstruction (Requires additional arguments)
-Based on the informations from *step 1*, you can attempt reconstruction using the --helper_args option. 
+Based on the information from *step 1*, you can attempt reconstruction using the --helper_args option. 
 
 The option arguments are as follows: stripe size, start offset, vdisk size, raid level.
 
 Options are used to specify additional informations for reconstruction, such as stripe size. 
 
-Unfortunately, guessing stripe size rely on human guessing. (Such as, 16KB, 32KB, 64KB, 128KB ...)
+Since stripe size cannot be determined automatically, you may need to test values like 16KB, 32KB, 64KB, or 128KB manually.
 
-**However**, depends on file system, we can get few useful informations for guessing stripe size.
+**However**, certain file systems can help infer the stripe size.
 For example, for NTFS, we can utilize $Upcase file([128KB file full of capital letters](https://flatcap.github.io/linux-ntfs/ntfs/files/upcase.html)).
 
-More details can be found in PDF file in `src`.
+More details can be found in the PDF file located in src.
 
 **Example**
 Inferred arguments in *step 1* are order of disks, RAID level, and candidates of start offset. 
@@ -113,18 +113,16 @@ $ python3 main.py --mode helper --system Intel -r --files S1SUNSAG353817Z.img S3
 **Note**
 When reconstructing deleted volumes, 
 the order of the image file names must match the actual order of the disks (first disk comes first in the file names).
-Size of vdisk in example is set to be the farthest distance between the candidates. 
+The virtual disk size in the example is set to the largest difference between the start offset candidates.
 
 # Requirements
 --------------
-No package dependency needed for reassembling disk images.
+No additional packages are required for reconstructing disk images.
 
-However, for checking live systems, you'll need:
-
-However, for Live system checking, we need to solve two problems for this project.
+However, for live system checking, two dependencies need to be installed
 
 1. pywin32: Used to read storage size accurately. Install it with python -m pip install pywin32.
-2. CrystalDiskInfo: Provides detailed information about drivers and storage. It will be included in the release
+2. CrystalDiskInfo: Provides detailed information about drivers and storage. This tool will be included in the release. 
 
 **Install**
 ```
