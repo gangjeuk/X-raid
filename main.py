@@ -5,7 +5,7 @@ from live import live_system_check
 import helper
 
 
-ASCII_LOGO = '''\
+ASCII_LOGO = '''
 .----------------.  .----------------.  .----------------.  .----------------. 
 | .--------------. || .--------------. || .--------------. || .--------------. |
 | |      __      | || |     _____    | || |  _______     | || |  _______     | |
@@ -16,10 +16,13 @@ ASCII_LOGO = '''\
 | ||____|  |____|| || |    |_____|   | || | |____| |___| | || | |____| |___| | |
 | |              | || |              | || |              | || |              | |
 | '--------------' || '--------------' || '--------------' || '--------------' |
- '----------------'  '----------------'  '----------------'  '----------------'\
+ '----------------'  '----------------'  '----------------'  '----------------'
 '''
 
 if __name__ == "__main__":
+
+    print(ASCII_LOGO)
+
     parser = argparse.ArgumentParser(
         description="AIRR(AMD & Intel RAID Reconstructor)",
         add_help=False,
@@ -65,30 +68,9 @@ if __name__ == "__main__":
     parser.add_argument("--helper_args", action="extend", nargs='+', help="Args for helper mode: stripe size, start offset, vdisk size, raid level", type=int)
     args = parser.parse_args()
 
-    if args.help:
-        print(ASCII_LOGO)
-        parser.print_help()
-        exit(0)
-    elif args.system is None or args.mode is None:
-        print("Please check argument!!")
-        print(
-            """ex)\n 
-            Live:
-            \tpython3 main.py --mode live 
-            Dead: 
-            \tpython3 main.py --mode dead --system Intel --help 
-            \tpython3 main.py --mode dead --system Intel -r --files file1.img file2.img --output_path . 
-            \tpython3 main.py --mode dead --system AMD -r --files file1.img file2.img --index 10 --output_path . 
-            \tpython3 main.py --mode dead --system AMD -i
-            \tpython3 main.py --mode dead --system AMD -i --index 4
-            \tpython3 main.py --mode dead --system AMD --history    
-            Helper:
-            \tpython3 main.py --mode helper --system Intel -r --files file1.img file2.img
-            \tpython3 main.py --mode helper --system Intel -r --files file1.img file2.img --helper_args 65536 0 118749790208 0"""
-        )
-        exit(0)
-    if args.mode == "live":
+    if args.system is None and args.mode == "live":
         live_system_check()
+        exit(0)
     elif args.mode == "dead":
         if args.system == "Intel":
             if args.history:
@@ -107,15 +89,39 @@ if __name__ == "__main__":
                 print(args.files)
                 print(args.output_path)
                 AMD.reconstruct(args.files, args.output_path, args.index)
-                
+
     elif args.mode == "helper":
         if args.system == "Intel":
             if args.reconstruct and args.files and not args.helper_args:
                 helper.reconstruct_helper(args.files, args.output_path)
             elif args.reconstruct and args.files and args.helper_args:
-                helper.reconstruct(args.files, args.helper_args[0], args.helper_args[1], args.helper_args[2], args.helper_args[3], args.output_path)
+                helper.reconstruct(args.files, args.helper_args[0], args.helper_args[1], args.helper_args[2],
+                                   args.helper_args[3], args.output_path)
             else:
                 print("Please check arguments")
                 parser.print_help()
         else:
             print("Helper mode only supports Intel RAID")
+
+    if args.help:
+        parser.print_help()
+        exit(0)
+
+    elif args.system is None or args.mode is None:
+        print("Please check argument!!")
+        print(
+            """ex)\n 
+            Live:
+            \tpython3 main.py --mode live 
+            Dead: 
+            \tpython3 main.py --mode dead --system Intel --help 
+            \tpython3 main.py --mode dead --system Intel -r --files file1.img file2.img --output_path . 
+            \tpython3 main.py --mode dead --system AMD -r --files file1.img file2.img --index 10 --output_path . 
+            \tpython3 main.py --mode dead --system AMD -i
+            \tpython3 main.py --mode dead --system AMD -i --index 4
+            \tpython3 main.py --mode dead --system AMD --history    
+            Helper:
+            \tpython3 main.py --mode helper --system Intel -r --files file1.img file2.img
+            \tpython3 main.py --mode helper --system Intel -r --files file1.img file2.img --helper_args 65536 0 118749790208 0"""
+        )
+        exit(0)
