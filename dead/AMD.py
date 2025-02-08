@@ -183,7 +183,7 @@ def dump_anchor(anchor: ANCHOR, verbose=False):
     print("======== ANCHOR ==========")
     print("Number of DDF Header: {}".format(anchor.ddf_count))
     print("Offset of latest version: {}".format(hex(anchor.offset_sec * SECTOR_SIZE)))
-    print("Disk ID: {}".format(anchor.disk_id))
+    print("Disk ID: {}".format(hex(anchor.disk_id)))
 
 
 def dump_disk(disk: DISK, verbose=False):
