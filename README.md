@@ -2,7 +2,7 @@
 --------------
 ***X-raid*** (RAID Scanning, Reconstruction, and Recovery for Intel & AMD RAID Systems) is a tool designed to automate the reconstruction of RAID images, particularly for Intel & AMD RAID systems. Check the Usage section for more details.
 
-1. [AIRR](#airr)
+1. [X-raid](#x-raid)
 2. [Options](#options)
 3. [Usage](#usage)
 4. [Requirements](#requirements)
@@ -27,7 +27,7 @@ $ python main.py [--mode {dead,live,helper}] [--system {Intel,AMD}] [-h] [-H] [-
 | --helper_args                 |Set additional arguments for helper mode (Only for helper mode)|
 
 # Usage
-AIRR offers three modes for different purposes
+X-raid offers three modes for different purposes
 
 1. Dead: Reconstruct RAID images
 2. Live: Check live systems for RAID usage
@@ -72,7 +72,7 @@ This mode helps with Intel RAID reconstruction in two steps:
 
 ### Step1: Check Helper Message
 
-AIRR analyzes the image files to gather reconstruction hints, such as disk order, RAID level, and start offset candidates. 
+X-raid analyzes the image files to gather reconstruction hints, such as disk order, RAID level, and start offset candidates. 
 
 Use the --mode helper --system Intel options.
 
