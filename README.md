@@ -1,6 +1,6 @@
-# AIRR
+# X-raid
 --------------
-***AIRR*** (AMD & Intel RAID Reconstructor) is a tool designed to automate the reconstruction of RAID images, particularly for Intel & AMD RAID systems. Check the Usage section for more details.
+***X-raid*** (RAID Scanning, Reconstruction, and Recovery for Intel & AMD RAID Systems) is a tool designed to automate the reconstruction of RAID images, particularly for Intel & AMD RAID systems. Check the Usage section for more details.
 
 1. [AIRR](#airr)
 2. [Options](#options)
