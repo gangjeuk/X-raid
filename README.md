@@ -21,7 +21,8 @@ $ python main.py [--mode {dead,live,helper}] [--system {Intel,AMD}] [-h] [-H] [-
 | -H, --history                 |Show history of virtual disk (Only for AMD)|
 | -i, --info                    |Show virtual disk Information|
 | -v, --verbose                 |Enable verbose mode for detailed output|
-| -r, --reconstruct             |Reconstruct virtual disk|
+| -s, --scan                    |Select the scan type: quick \| deep|
+| -r, --reconstruct_recovery             |Reconstruct or recovery virtual disk|
 | --files FILES                 |Specify files for reconstruction|
 | --output_path OUTPUT_PATH     |Set the output directory for the reconstructed virtual disk|
 | --helper_args                 |Set additional arguments for helper mode (Only for helper mode)|
@@ -29,13 +30,13 @@ $ python main.py [--mode {dead,live,helper}] [--system {Intel,AMD}] [-h] [-H] [-
 # Usage
 **X-raid** offers three modes for different purposes
 
-1. Dead: Reconstruct RAID images
+1. Dead: Scan, Reconstruct or Recovery virtual disk
 2. Live: Check live systems for RAID usage
 3. Helper: Assist with Intel RAID reconstruction
 
 
 ## Dead system (Image Reconstruct)
-This mode allows you to reconstruct separate RAID configured storages into a single volume.
+This mode allows you to reconstruct or recover separate RAID-configured storage devices into a single volume, or simply scan to check if image files are part of an Intel/AMD RAID system.
 
 Use the --mode dead option.
 
@@ -44,11 +45,15 @@ Use the --mode dead option.
 # Get help for dead mode with Intel system
 $ python3 main.py --mode dead --system Intel --help  
 
+# Scan disk image files to check whether they are part of an Intel/AMD RAID system
+$ python3 main.py --mode dead --scan quick --files [image_file_01.img] [image_file_02.img]
+$ python3 main.py --mode dead --scan deep --files [image_file_01.img] [image_file_02.img]
+
 # Reconstruct AMD RAID images with default output path
-$ python3 main.py --mode dead --system AMD -r --files image_file1.img image_file2.img --output_path .  
+$ python3 main.py --mode dead --system AMD -r --files [image_file_01.img] [image_file_02.img] --output_path .  
 
 # Reconstruct Intel RAID with custom output path (Serial number used as image file name)
-$ python3 main.py --mode dead --system Intel -r --files S3YKNC0N108175B.img S3YKNC0Z134189U.img --output_path /path/to/output  
+$ python3 main.py --mode dead --system Intel -r --files [image_file_01.img] [image_file_02.img] --output_path /path/to/output  
 ```
 **Note**: For Intel RAID, the image file names should match the product's serial numbers.
 
