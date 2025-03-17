@@ -6,25 +6,23 @@ import helper
 
 
 ASCII_LOGO = '''
-.----------------.  .----------------.  .----------------.  .----------------. 
-| .--------------. || .--------------. || .--------------. || .--------------. |
-| |      __      | || |     _____    | || |  _______     | || |  _______     | |
-| |     /  \     | || |    |_   _|   | || | |_   __ \    | || | |_   __ \    | |
-| |    / /\ \    | || |      | |     | || |   | |__) |   | || |   | |__) |   | |
-| |   / ____ \   | || |      | |     | || |   |  __ /    | || |   |  __ /    | |
-| | _/ /    \ \_ | || |     _| |_    | || |  _| |  \ \_  | || |  _| |  \ \_  | |
-| ||____|  |____|| || |    |_____|   | || | |____| |___| | || | |____| |___| | |
-| |              | || |              | || |              | || |              | |
-| '--------------' || '--------------' || '--------------' || '--------------' |
- '----------------'  '----------------'  '----------------'  '----------------'
+██╗    ██╗                
+ ██╗  ██╔╝                               ███╗
+  ██╗██╔╝                          ██╗   ╚═██╗
+   ███╔╝         ██╔███╗  ██████   ╚═╝ ██████║
+  ██╔██╗  █████╗ ████╔██╗██╔══██╗  ██╗██╔══██║
+ ██╔╝ ██╗ ╚════╝ ██╔═╝╚═╝██║  ███╗ ██║██║  ██║
+██╔╝   ██╗       ██║      █████╔██╗██║ ██████║
+╚═╝    ╚═╝       ╚═╝       ╚═══╝╚═╝╚═╝  ╚════╝
 '''
 
 if __name__ == "__main__":
 
     print(ASCII_LOGO)
+    print("X-raid (RAID Scanning, Reconstruction, and Recovery on Intel & AMD RAID Systems)\n")
 
     parser = argparse.ArgumentParser(
-        description="AIRR(AMD & Intel RAID Reconstructor)",
+        description="",
         add_help=False,
     )
 
@@ -39,6 +37,13 @@ if __name__ == "__main__":
         "--system",
         choices=["Intel", "AMD"],
         help="Type of system: Intel | AMD",
+        type=str,
+    )
+
+    parser.add_argument(
+        "--scan",
+        choices=["quick", "deep"],
+        help="Type of scan: quick | deep",
         type=str,
     )
 
@@ -61,7 +66,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--files", action="extend", nargs='+', help="Files for reconstruction")
         
-    parser.add_argument("--index", help="Index number of history(AMD RAID only)", default=-1, type=int)
+    parser.add_argument("--index", help="Index number of history (AMD RAID only)", default=-1, type=int)
 
     parser.add_argument("--output_path", help="Output directory of reconstructed VDisk", type=str)
 
@@ -89,6 +94,69 @@ if __name__ == "__main__":
                 print(args.files)
                 print(args.output_path)
                 AMD.reconstruct(args.files, args.output_path, args.index)
+        else :
+            pass
+
+        if args.scan == "quick":
+            print("Quick scan mode start")
+
+            if args.files:
+                print(len(args.files),"file(s) detected")
+                file_count = 0
+                for file in args.files:
+                    file_count = file_count+1
+                    print("\n[%s]"%file_count, file)
+                    Intel.quick_scan(file)
+                    AMD.quick_scan(file)
+            else:
+                print("\033[31mError\033[0m: At least one input file is required. Please provide one or more files.")
+            exit(0)
+
+        elif args.scan == "deep":
+            continue_yn = input("\033[31mWarning\033[0m: Deep scan mode may take a long time. Do you want to \033[32mcontinue\033[0m? (y/n) ")
+            if continue_yn in ["y", "Y"]:
+                system_select = input("Please specify the RAID system you want to deep scan. (\033[34mIntel\033[0m/\033[38;5;214mAMD\033[0m) ")
+                if system_select in ["intel", "Intel"]:
+                    print("\nDeep scan mode start - \033[34mIntel\033[0m")
+                    if args.files:
+                        print(len(args.files), "file(s) detected")
+                        file_count = 0
+                        for file in args.files:
+                            file_count = file_count + 1
+                            print("\n[%s]" % file_count, file)
+                            Intel.deep_scan(file)
+                    else:
+                        print(
+                            "\033[31mError\033[0m: At least one input file is required. Please provide one or more files.")
+                        exit(0)
+                    exit(0)
+
+                elif system_select in ["AMD", "amd"]:
+                    print("\nDeep scan mode start - \033[38;5;214mAMD\033[0m")
+                    if args.files:
+                        print(len(args.files), "file(s) detected")
+                        file_count = 0
+                        for file in args.files:
+                            file_count = file_count + 1
+                            print("\n[%s]" % file_count, file)
+                            AMD.deep_scan(file)
+                    else:
+                        print(
+                            "\033[31mError\033[0m: At least one input file is required. Please provide one or more files.")
+                        exit(0)
+                    exit(0)
+                else:
+                    print(
+                        "\033[31mError\033[0m: Please input Intel(intel) or AMD(amd)")
+                    exit(0)
+
+            elif continue_yn == "n" or continue_yn == "N":
+                print("\nDeep scan mode suspended")
+                exit(0)
+
+            else:
+                print("\n\033[31mError\033[0m: Please input Y(y) or N(n)")
+                exit(0)
 
     elif args.mode == "helper":
         if args.system == "Intel":
@@ -113,7 +181,8 @@ if __name__ == "__main__":
             """ex)\n 
             Live:
             \tpython3 main.py --mode live 
-            Dead: 
+            Dead:
+            \tpython3 main.py --mode dead --scan [quick or deep] --files file1.img file2.img
             \tpython3 main.py --mode dead --system Intel --help 
             \tpython3 main.py --mode dead --system Intel -r --files file1.img file2.img --output_path . 
             \tpython3 main.py --mode dead --system AMD -r --files file1.img file2.img --index 10 --output_path . 
