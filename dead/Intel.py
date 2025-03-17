@@ -217,11 +217,12 @@ def read_first_meta_sec(file_name):
     with open(file_name, "br") as f:
         f.seek(-1 * SECTOR_SIZE * 2, SEEK_END)
         ret = f.read(SECTOR_SIZE * 1)
+        offset = hex(f.seek(-1 * SECTOR_SIZE * 2, SEEK_END))
 
     if len(ret) != SECTOR_SIZE:
         print("SECTOR read error")
         exit(1)
-    return ret
+    return [ret, offset]
 
 
 def check_is_intel_raid(file_name) -> int:
@@ -229,7 +230,7 @@ def check_is_intel_raid(file_name) -> int:
     global sector_size_candi
     for candi in sector_size_candi:
         SECTOR_SIZE = candi
-        metadata = read_first_meta_sec(file_name)
+        metadata = read_first_meta_sec(file_name)[0]
         if metadata[: len(MAGIC)].decode('ascii') == MAGIC:
 
             return True
@@ -242,7 +243,8 @@ def check_is_intel_raid(file_name) -> int:
 
 def quick_scan(file_names):
     if check_is_intel_raid(file_names) == True:
-        print("\033[34mIntel\033[0m RAID \033[32mdetected!\033[0m")
+        offset = read_first_meta_sec(file_names)[1]
+        print("\033[34mIntel\033[0m RAID \033[32mdetected\033[0m in offset "+offset)
 
     else:
         print("\033[34mIntel\033[0m RAID \033[31mNOT\033[0m detected..")
@@ -458,4 +460,3 @@ def print_help():
 
 if __name__ == "__main__":
     print("Intel RAID Main")
-
