@@ -50,10 +50,13 @@ $ python3 main.py --mode dead --scan quick --files [image_file_01.img] [image_fi
 $ python3 main.py --mode dead --scan deep --files [image_file_01.img] [image_file_02.img]
 
 # Reconstruct AMD RAID images with default output path
-$ python3 main.py --mode dead --system AMD -r --files [image_file_01.img] [image_file_02.img] --output_path .  
+$ python3 main.py --mode dead --system AMD -r --files [image_file_01.img] [image_file_02.img] --output_path .
 
-# Reconstruct Intel RAID with custom output path (Serial number used as image file name)
-$ python3 main.py --mode dead --system Intel -r --files [image_file_01.img] [image_file_02.img] --output_path /path/to/output  
+# Recovery specific version (index 10) of AMD RAID images with custom output path
+$ python3 main.py --mode dead --system AMD -r --files file1.img file2.img --index 10 --output_path /path/to/output
+
+# Reconstruct Intel RAID with custom output path
+$ python3 main.py --mode dead --system Intel -r --files [disk_01_serial_number.img] [disk_02_serial_number.img] --output_path /path/to/output  
 ```
 **Note**: For Intel RAID, the image file names should match the product's serial numbers.
 
