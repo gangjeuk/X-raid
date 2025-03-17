@@ -1,10 +1,13 @@
 from struct import unpack, calcsize
 import os
 import time
+import sys
+import gc
 from collections import namedtuple
 from typing import *
 import re
-
+from tqdm import tqdm
+from concurrent.futures import ThreadPoolExecutor
 # https://stackoverflow.com/questions/4193514/how-to-get-hard-disk-serial-number-using-python
 
 
@@ -207,9 +210,7 @@ def read_rest_meta_sec(file_name, mpb_size):
         exit(1)
     return ret
 
-
 # UTIL_END  x
-
 
 def read_first_meta_sec(file_name):
     ret = b""
@@ -230,12 +231,61 @@ def check_is_intel_raid(file_name) -> int:
         SECTOR_SIZE = candi
         metadata = read_first_meta_sec(file_name)
         if metadata[: len(MAGIC)].decode('ascii') == MAGIC:
+
             return True
         elif metadata[1: len(MAGIC)].decode('ascii') == MAGIC[1:]:
-            print("Intel Raid Detected But Metadata has been deleted!!!")
+            print("Intel RAID detected but metadata has been deleted!!!")
             print("It has to be recovered manually!!")
             return False
     return False
+
+
+def quick_scan(file_names):
+    if check_is_intel_raid(file_names) == True:
+        print("\033[34mIntel\033[0m RAID \033[32mdetected!\033[0m")
+
+    else:
+        print("\033[34mIntel\033[0m RAID \033[31mNOT\033[0m detected..")
+
+
+def read_chunk(file_name, start_offset, chunk_size, target_bytes):
+    results = []
+
+    with open(file_name, "rb") as f:
+        f.seek(start_offset)
+        chunk = f.read(chunk_size)
+
+        found_offset = 0
+        while (found_offset := chunk.find(target_bytes, found_offset)) != -1:
+            actual_offset = start_offset + found_offset
+            results.append(f"[FOUND] Target hex at offset: {actual_offset} (0x{actual_offset:X})")
+            found_offset += 1
+
+    return results, len(chunk)
+
+
+def deep_scan(file_names: str, chunk_size=128 * 1024 * 1024, num_threads=os.cpu_count()):
+    target_bytes = bytes.fromhex("496E74656C20526169642049534D2043666720536967")  # Intel Raid ISM Cfg Sig
+    file_size = os.path.getsize(file_names)
+    chunk_ranges = [(i * chunk_size, min((i + 1) * chunk_size, file_size)) for i in
+                    range((file_size // chunk_size) + 1)]
+
+    start_time = time.time()
+
+    with tqdm(total=file_size, unit="B", unit_scale=True, desc="Scanning") as pbar:
+        with ThreadPoolExecutor(max_workers=num_threads) as executor:
+            futures = {executor.submit(read_chunk, file_names, start, end - start, target_bytes): (start, end)
+                       for start, end in chunk_ranges}
+
+            for future in futures:
+                results, chunk_length = future.result()
+                for result in results:
+                    print(result)
+                pbar.update(chunk_length)
+
+    total_time = time.time() - start_time
+    print(f"\nScanning Complete! Total Time: {total_time:.2f} seconds")
+
 
 def parse_header(metadata, disk_offset):
     FORMAT = "<32sLLLLLLBBBBLLLLHHQ"
@@ -279,7 +329,8 @@ def parse_dev(metadata, disk_offset):
     imsm_dev = IMSM_DEV._make([*device, imsm_vol])
 
     return imsm_dev, disk_offset
-    
+
+
 def parse_metadata(file_name) -> tuple[IMSM_SUPER, list[IMSM_DISK], list[IMSM_DEV]]:
     metadata = read_first_meta_sec(file_name)
     disk_offset = 0
@@ -388,7 +439,6 @@ def reconstruct(
 
         [fd.close() for fd in disk_fds]
 
-               
     
 def print_info(file_name, verbose):
     imsm_super, imsm_disk_l, imsm_dev_l = parse_metadata(file_name)
@@ -407,24 +457,5 @@ def print_help():
 
 
 if __name__ == "__main__":
-    serial = ["S3YKNC0N108175B", "S3YKNX0M546512K"]
-
-    FILE_NAME = "S3YKNC0N108175B.img"
-    LOCATION = "./Matrix RAID"
-    FILE_NAME = os.path.join(LOCATION, FILE_NAME)
-    # SECTOR_SIZE = TODO: Sector size must be set by hand
-    # Now SECTOR_SIZE is changed by function check_is_intel_raid
-    if check_is_intel_raid(FILE_NAME) == False:
-        print("Intel Raid is not detected")
-        exit(1)
-    print("Intel Raid has been detected")
-    imsm_super, imsm_disk_l, imsm_dev_l = parse_metadata(FILE_NAME)
-    FILE_NAME = "S3YKNX0M546512K.img"
-    FILE_NAME = os.path.join(LOCATION, FILE_NAME)
-    if check_is_intel_raid(FILE_NAME) == False:
-        print("Intel Raid is not detected")
-        exit(1)
-    print("Intel Raid has been detected")
-    imsm_super, imsm_disk_l, imsm_dev_l = parse_metadata(FILE_NAME)
-    reconstruct(imsm_disk_l, imsm_dev_l)
+    print("Intel RAID Main")
 
