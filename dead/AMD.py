@@ -173,19 +173,22 @@ def get_rounded_size(size: Optional[int], unit: Literal["KB", "MB", "GB"]) -> st
         return str(size // 1000000000) + unit
 
 
-def check_is_amd_raid(file_name) -> bool:
+def check_is_amd_raid(file_name):
     with open(file_name, "rb") as f:
         f.seek(ANCHOR_OFFSET, os.SEEK_SET)
         data = f.read(SECTOR_SIZE * 2)
+        offset = hex(f.seek(ANCHOR_OFFSET, os.SEEK_SET))
         if data[8:16].decode() == MAGIC:
-            return True
+            return [True, offset]
         else:
-            return False
+            return [False, None]
 
 
 def quick_scan(file_names: str):
-    if check_is_amd_raid(file_names) == True:
-        print("\033[38;5;214mAMD\033[0m RAID \033[32mdetected!\033[0m")
+    if check_is_amd_raid(file_names)[0] == True:
+        offset = check_is_amd_raid(file_names)[1]
+        print("\033[38;5;214mAMD\033[0m RAID \033[32mdetected\033[0m in offset "+offset)
+
     else:
         print("\033[38;5;214mAMD\033[0m RAID \033[31mNOT\033[0m detected..")
 
@@ -280,7 +283,7 @@ def parse_metadata(
     anchor = b""
     disk_lst, vdisk_lst = [], []
 
-    if not check_is_amd_raid(file_name):
+    if not check_is_amd_raid(file_name)[0]:
         print("No AMD RAID Signature found")
         return None
 
