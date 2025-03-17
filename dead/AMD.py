@@ -1,10 +1,14 @@
 from struct import unpack, calcsize
 import os
+import sys
+import gc
 import time
 from collections import namedtuple
 from typing import *
 from functools import reduce
 from enum import Enum
+from concurrent.futures import ThreadPoolExecutor
+from tqdm import tqdm
 
 MAGIC = "RAIDCore"
 
@@ -177,6 +181,52 @@ def check_is_amd_raid(file_name) -> bool:
             return True
         else:
             return False
+
+
+def quick_scan(file_names: str):
+    if check_is_amd_raid(file_names) == True:
+        print("\033[38;5;214mAMD\033[0m RAID \033[32mdetected!\033[0m")
+    else:
+        print("\033[38;5;214mAMD\033[0m RAID \033[31mNOT\033[0m detected..")
+
+
+def read_chunk(file_name, start_offset, chunk_size, target_bytes):
+    results = []
+
+    with open(file_name, "rb") as f:
+        f.seek(start_offset)
+        chunk = f.read(chunk_size)
+
+        found_offset = 0
+        while (found_offset := chunk.find(target_bytes, found_offset)) != -1:
+            actual_offset = start_offset + found_offset
+            results.append(f"[FOUND] Target hex at offset: {actual_offset} (0x{actual_offset:X})")
+            found_offset += 1
+
+    return results, len(chunk)
+
+
+def deep_scan(file_names: str, chunk_size=128 * 1024 * 1024, num_threads=os.cpu_count()):
+    target_bytes = bytes.fromhex("52414944436F7265")  # RAIDCore
+    file_size = os.path.getsize(file_names)
+    chunk_ranges = [(i * chunk_size, min((i + 1) * chunk_size, file_size)) for i in
+                    range((file_size // chunk_size) + 1)]
+
+    start_time = time.time()
+
+    with tqdm(total=file_size, unit="B", unit_scale=True, desc="Scanning") as pbar:
+        with ThreadPoolExecutor(max_workers=num_threads) as executor:
+            futures = {executor.submit(read_chunk, file_names, start, end - start, target_bytes): (start, end)
+                       for start, end in chunk_ranges}
+
+            for future in futures:
+                results, chunk_length = future.result()
+                for result in results:
+                    print(result)
+                pbar.update(chunk_length)
+
+    total_time = time.time() - start_time
+    print(f"\nScanning Complete! Total Time: {total_time:.2f} seconds")
 
 
 def dump_anchor(anchor: ANCHOR, verbose=False):
@@ -418,6 +468,7 @@ def print_history(file_name, verbose=False):
             list(map(dump_vdisk, list(deleted_vdisk)))
             print()
 
+
 def print_info(file_name, verbose, index=-1):
     anchor, _, disk_list, vdisk_list = parse_metadata(file_name, index)
 
@@ -443,5 +494,4 @@ def print_help():
 
 
 if __name__ == "__main__":
-    file_name = "data/AMD/hex"
-    print_history(file_name)
+    print("AMD RAID Main")
