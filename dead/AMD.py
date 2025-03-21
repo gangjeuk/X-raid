@@ -187,7 +187,7 @@ def check_is_amd_raid(file_name):
 def quick_scan(file_names: str):
     if check_is_amd_raid(file_names)[0] == True:
         offset = check_is_amd_raid(file_names)[1]
-        print("\033[38;5;214mAMD\033[0m RAID \033[32mdetected\033[0m in offset "+offset)
+        print("\033[38;5;214mAMD\033[0m RAID \033[32mdetected\033[0m in offset " + offset)
 
     else:
         print("\033[38;5;214mAMD\033[0m RAID \033[31mNOT\033[0m detected..")
@@ -252,7 +252,7 @@ def dump_vdisk(vdisk: VDISK, verbose=False):
     print("Stripe size: {}".format(get_stripe_size(vdisk)))
     print("Size: {}".format(get_rounded_size(vdisk.sector_count * SECTOR_SIZE, "GB")))
     print("Total disk count: {}".format(vdisk.total_count))
-    print("Name: {}".format(vdisk.name.decode('utf-8')))
+    print("Name: {}".format(vdisk.name.decode('utf-8', errors="ignore")))
     if verbose is True:
         print("----------------------------------------------------")
         print("[Order] Disk ID: Start Offset / End Offset")
@@ -272,7 +272,7 @@ def dump_vdisk(vdisk: VDISK, verbose=False):
 
 
 def parse_metadata(
-    file_name, index=-1
+        file_name, index=-1
 ) -> Tuple[ANCHOR, HEADER, list[DISK], list[VDISK]]:
     FORMAT = ""
     FORMAT_SIZE = 0
@@ -315,7 +315,7 @@ def parse_metadata(
             while header.signature != 0xE1E10000:
                 data = f.read(SECTOR_SIZE)
                 header = HEADER._make(unpack(FORMAT, data[:FORMAT_SIZE]))
-                
+
         f.seek(-1 * SECTOR_SIZE, os.SEEK_CUR)
 
     data = f.read(SECTOR_SIZE)
@@ -327,7 +327,7 @@ def parse_metadata(
         FORMAT = "<LQHH12pQ"
         FORMAT_SIZE = calcsize(FORMAT)
         disk_lst.append(
-            DISK._make(unpack(FORMAT, data[0x80 * i : 0x80 * i + FORMAT_SIZE]))
+            DISK._make(unpack(FORMAT, data[0x80 * i: 0x80 * i + FORMAT_SIZE]))
         )
 
     vdisk_offset = 0
@@ -339,7 +339,7 @@ def parse_metadata(
         if vdisk_offset + FORMAT_SIZE > header.vdisk_size:
             break
         vdisk_lst.append(
-            VDISK._make(unpack(FORMAT, data[vdisk_offset : vdisk_offset + FORMAT_SIZE]))
+            VDISK._make(unpack(FORMAT, data[vdisk_offset: vdisk_offset + FORMAT_SIZE]))
         )
         vdisk_offset += SECTOR_SIZE
         config = []
@@ -348,7 +348,7 @@ def parse_metadata(
             FORMAT_SIZE = calcsize(FORMAT)
             config.append(
                 CONFIG._make(
-                    unpack(FORMAT, data[vdisk_offset : vdisk_offset + FORMAT_SIZE])
+                    unpack(FORMAT, data[vdisk_offset: vdisk_offset + FORMAT_SIZE])
                 )
             )
             vdisk_offset += 0x40
@@ -375,24 +375,32 @@ def reconstruct(file_names: list[str], output_path: str, index=-1):
     # Use metadata in the first file in list for now
 
     anchor, header, disk_lst, vdisk_lst = parse_metadata(file_names[0], index)
+
     for vdisk in vdisk_lst:
         output_name = ""
         stripe_size = 1 << (15 + vdisk.cts)
         raid_level = get_raid_level(vdisk)
         size = get_rounded_size(vdisk.sector_count * SECTOR_SIZE, "GB")
         fd_disk_map = {}
+
         for config in vdisk.config:
-            fd_disk_map[config.id] = open(file_disk_map[config.id], "rb")
+            if config.id in file_disk_map:
+                fd_disk_map[config.id] = open(file_disk_map[config.id], "rb")
+            else:
+                pass
 
         output_name = (
-            str(hex(vdisk.id)) + "_RAID" + str(raid_level) + "_" + size + ".img"
+                str(hex(vdisk.id)) + "_RAID" + str(raid_level) + "_" + size + ".img"
         )
         print("Reconstructing VDISK ID: {}".format(output_name))
         dump_vdisk(vdisk, True)
         with open(os.path.join(output_path, output_name), "wb") as fw:
             # set each disk SEEK position
             for config in vdisk.config:
-                fd_disk_map[config.id].seek(config.begin * SECTOR_SIZE, os.SEEK_SET)
+                if config.id in file_disk_map:
+                    fd_disk_map[config.id].seek(config.begin * SECTOR_SIZE, os.SEEK_SET)
+                else:
+                    pass
 
             if raid_level == RAID_Level.zero:
                 # calc how many times to loop
