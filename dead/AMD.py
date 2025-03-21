@@ -390,7 +390,7 @@ def reconstruct(file_names: list[str], output_path: str, index=-1):
                 pass
 
         output_name = (
-                str(hex(vdisk.id)) + "_RAID" + str(raid_level) + "_" + size + ".img"
+                str(hex(vdisk.id)) + "_" + str(raid_level) + "_" + size + ".img"
         )
         print("Reconstructing VDISK ID: {}".format(output_name))
         dump_vdisk(vdisk, True)
