@@ -472,7 +472,6 @@ def reconstruct(
                     f.write(buf)
 
             elif raid_level == 10:
-                continue
                 # read half of disks
                 disk_ord_tbl = disk_ord_tbl[0::2]
                 # set to lba
