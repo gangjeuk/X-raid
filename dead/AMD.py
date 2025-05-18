@@ -435,6 +435,17 @@ def reconstruct(file_names: list[str], output_path: str, index=-1):
                     for i in range((config.end * SECTOR_SIZE) // stripe_size):
                         data = fd_disk_map[config.id].read(stripe_size)
                         fw.write(data)
+            elif raid_level == RAID_Level.ten:
+                # select raid0 configs
+                configs = vdisk.config[0::2]
+                # calc how many times to loop
+                for i in range((configs[0].end * SECTOR_SIZE) // stripe_size):
+                    # reconstruct by disk order
+                    # AMD RAID follow the order in vdisk.config
+                    data = b""
+                    for config in configs:
+                        data += fd_disk_map[config.id].read(stripe_size)
+                    fw.write(data)
 
         map(lambda x: x.close(), fd_disk_map.keys())
 

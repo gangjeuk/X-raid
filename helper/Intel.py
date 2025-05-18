@@ -35,16 +35,16 @@ def raid_level_helper(file_names, dev_map):
     # If all disk have order == -1, something went wrong in previous process
     if len(list(filter(lambda x: dev_map[x]["order"] == -1, dev_map))) == len(dev_map):
         print("Something went wrong. RAID level has not been set in previous step")
-        exit(1)
+        return
     # Only one disk should have EFI or BR. If not, it must be RAID1
     if len(list(filter(lambda x: dev_map[x]["order"] == 1, dev_map))) != 1:
         if len(file_names) == 2:
             print("RAID level must be 1. Check image files")
-            exit(1)
+            return
         else:
             print("Something went wrong. Check image files")
             print("Manual Reconstruction might be needed")
-            exit(1)
+            return
     elif len(list(filter(lambda x: dev_map[x]["order"] == 1, dev_map))) == 2 and len(file_names) == 4:
         print("Guessed RAID level: RAID10")
         return
@@ -79,7 +79,7 @@ def start_offset_helper(file_name):
                 # fit in stripe unit size
                 start_offset_candi.add(((i * SECTOR_SIZE) // 0x1000) * 0x1000)
             i += 1
-    print("Start offset candidates: {}".format(start_offset_candi))
+    return start_offset_candi
 
 def print_metadata(file_names):
     '''
@@ -122,7 +122,11 @@ def reconstruct_helper(
     first_disk = list(filter(lambda x: dev_map[x]["order"] == 1, dev_map))[0]
     
     # check start offset candidates
-    start_offset_candi = start_offset_helper(first_disk)
+    for disk in list(filter(lambda x: dev_map[x]["order"] == 1, dev_map)):
+        print("Searching Disk: `{}` offset candidate".format(disk))
+        start_offset_candi = start_offset_helper(first_disk)
+        print("Start offset candidates: {}".format(start_offset_candi))
+        print()
 
     
 def reconstruct(
@@ -170,8 +174,16 @@ def reconstruct(
                 for disk_fd in disk_fds:
                     buf += disk_fd.read(strip_size)
                 f.write(buf)
+        elif raid_level == 1:
+            # set to lba
+            [fd.seek(start_offset * SECTOR_SIZE, 0) for fd in disk_fds]
+            for count in range(vdisk_size // SECTOR_SIZE):
+                buf = b""
+                # read only one disk of strip size by disk order
+                buf += disk_fds[0].read(strip_size)
+                f.write(buf)
 
-        if raid_level == 5:
+        elif raid_level == 5:
             # set to lba
             [fd.seek(start_offset * SECTOR_SIZE, 0) for fd in disk_fds]
             for _ in range(vdisk_size // SECTOR_SIZE):

@@ -116,6 +116,15 @@ IMSM_SUPER = namedtuple(
 )
 MAGIC = "Intel Raid ISM Cfg Sig. "
 
+def __progress_bar(curr_cnt: int, total_cnt: int):
+    BAR_LENGTH = 30
+    percent = 100.0 * curr_cnt / total_cnt
+    sys.stdout.write('\r')
+    sys.stdout.write("Completed: [{:{}}] {:>3}%"
+                     .format('='*int(percent/(100.0/BAR_LENGTH)),
+                             BAR_LENGTH, int(percent)))
+    sys.stdout.flush()
+
 
 def get_rounded_size(size: Optional[int], unit: Literal["KB", "MB", "GB"]) -> str:
     if size is None:
@@ -334,9 +343,8 @@ def parse_dev(metadata, disk_offset):
 
 
 def parse_metadata(file_name) -> tuple[IMSM_SUPER, list[IMSM_DISK], list[IMSM_DEV]]:
-    metadata = read_first_meta_sec(file_name)
+    metadata = read_first_meta_sec(file_name)[0]
     disk_offset = 0
-
     imsm_super, disk_offset = parse_header(metadata, disk_offset)
 
     if imsm_super.mpb_size > SECTOR_SIZE:
@@ -395,7 +403,8 @@ def reconstruct(
             + str(raid_level)
             + ".img"
         )
-        with open(DISK_NAME, "wb") as f:
+        open_path = DISK_NAME if output_path is None else os.path.join(os.path.abspath(output_path), DISK_NAME)
+        with open(open_path, "wb") as f:
             print("Recover Started")
             print("DISK NAME: " + DISK_NAME)
             print_imsm_dev(dev)
@@ -403,41 +412,78 @@ def reconstruct(
             if raid_level == 0:
                 # set to lba
                 [fd.seek(start_lba * SECTOR_SIZE, 0) for fd in disk_fds]
-                for _ in range(stripes_count):
+                for count in range(stripes_count):
+                    __progress_bar(count, stripes_count)
                     buf = b""
                     # read disk of strip size by disk order
                     for ord in disk_ord_tbl:
                         buf += disk_fds[ord].read(strip_size)
                     f.write(buf)
 
-            if raid_level == 1:
+            elif raid_level == 1:
                 # set to lba
                 [fd.seek(start_lba * SECTOR_SIZE, 0) for fd in disk_fds]
-                for _ in range(stripes_count * 2):
+                for count in range(stripes_count * 2):
+                    __progress_bar(count, stripes_count * 2)
                     buf = b""
                     # read only one disk of strip size by disk order
                     buf += disk_fds[disk_ord_tbl[0]].read(strip_size)
                     f.write(buf)
 
 
-            if raid_level == 5:
+            elif raid_level == 5:
+                def byte_wise(a, b, c):
+                    return (int.from_bytes(a, 'big') ^ int.from_bytes(b, 'big') ^ int.from_bytes(c, 'big')).to_bytes(max(len(a), len(b), len(c)), 'big')
                 # set to lba
                 [fd.seek(start_lba * SECTOR_SIZE, 0) for fd in disk_fds]
-                for _ in range(stripes_count):
+                data_idx = 0
+                parity_idx = len(disk_ord_tbl) - 1
+                for count in range(stripes_count):
+                    __progress_bar(count, stripes_count)
                     buf = b""
-                    # read disk
+                    # # read disk
+                    # a=disk_fds[0].read(strip_size)
+                    # b=disk_fds[1].read(strip_size)
+                    # c=disk_fds[2].read(strip_size)
+                    # d=disk_fds[3].read(strip_size)
+                    # if byte_wise(a, b, c) == d:
+                    #     print(a[0:10], b[0:10], c[0:10], d[0:10])
+                    #     exit()
+                    # else:
+                    #     print(a[0:10], b[0:10], c[0:10], d[0:10])
+                    #     exit()
+                    # continue
+                    # Left-asymmetric Dataset/Raid10/
                     for i, ord in enumerate(disk_ord_tbl):
                         # Intel RAID write parity bit like below
-                        # d1 d2 d3
-                        # .  .  p
-                        # .  p  .
-                        # p  .  .
-                        parity_idx = i % len(disk_ord_tbl)
-                        # pass parity stripe
-                        if i != 0 and parity_idx == 0:
-                            continue
+                        # Disk1 Disk2 Disk3 Disk4
+                        #   D1    D2    D3    P1
+                        #   D4    D5    P2    D6
+                        #   D7    P3    D8    D9
+                        #   P4    D10   D11   D12
+                        # pass parity stripe    
+                        if parity_idx == data_idx:
+                            # pass parity
+                            disk_fds[data_idx].seek(strip_size)
+                        else:
+                            buf += disk_fds[data_idx].read(strip_size)
+                        data_idx = (data_idx + 1) % len(disk_ord_tbl)
+                    parity_idx = (parity_idx - 1) % len(disk_ord_tbl)
+                    f.write(buf)
+
+            elif raid_level == 10:
+                continue
+                # read half of disks
+                disk_ord_tbl = disk_ord_tbl[0::2]
+                # set to lba
+                [fd.seek(start_lba * SECTOR_SIZE, 0) for fd in disk_fds]
+                for count in range(stripes_count * 2):
+                    __progress_bar(count, stripes_count * 2)
+                    buf = b""
+                    # read disk of strip size by disk order
+                    for ord in disk_ord_tbl:
                         buf += disk_fds[ord].read(strip_size)
-                        f.write(buf)
+                    f.write(buf)
 
         [fd.close() for fd in disk_fds]
 
