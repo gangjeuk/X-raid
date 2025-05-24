@@ -16,20 +16,11 @@ The following sections detail the data structure transitions for each case, alon
 
 ## AMD RAID
 
-- Volume Creation: Three volumes were created, each utilizing three storage devices.
-- RAID Levels: Each volume was assigned a distinct RAID level:
-    - Volume 1: RAID 0
-    - Volume 2: RAID 1
-    - Volume 3: JBOD
-- Volume Deletion: Subsequently, the RAID 0 volume (Volume 1) was deleted.
-The data structure transition for AMD RAID is visualized in the image below
+AMD datasets were created using RAIDXpert2-enabled motherboards. Unlike Intel, AMD firmware RAID **preserves historical metadata**, allowing for **automated recovery of deleted volumes using version index**.
 
 ## Intel RAID
 
-- Volume Creation: Two volumes were created, each utilizing two storage devices.
-- Unified RAID Level: Both volumes were configured with the same RAID0
-- Volume Deletion: Following creation, the first volume was deleted.
-The data structure transition for Intel RAID is visualized in the image below
+Intel RAID datasets were generated using motherboards equipped with Intel Rapid Storage Technology (RST). Since metadata is overwritten upon virtual disk deletion, **manual parameter estimation is required** for recovery (e.g., stripe size, disk order). X-raid provides a helper mode to assist with this.
 
 ### Dataset Scenarios
 
